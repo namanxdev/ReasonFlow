@@ -23,7 +23,7 @@
     ],
     "paths": {
       "@/*": [
-        "../frontend2/src/*"
+        "./src/*"
       ]
     },
     "baseUrl": ".",
