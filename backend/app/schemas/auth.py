@@ -93,3 +93,11 @@ class GmailCallbackResponse(BaseModel):
 
     status: str = Field(description="Connection status (e.g. 'connected')")
     email: EmailStr = Field(description="Gmail address that was connected")
+    access_token: str | None = Field(
+        default=None,
+        description="JWT access token (returned only for unauthenticated Gmail login flow)",
+    )
+    token_type: str | None = Field(
+        default=None,
+        description="Token scheme, 'bearer' when access_token is present",
+    )

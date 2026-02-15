@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import type {
   IntentDistribution,
-  LatencyDataPoint,
+  LatencyMetrics,
   ToolAccuracy,
   SummaryStats,
 } from "@/types";
@@ -24,7 +24,7 @@ export function useLatencyStats(dateFrom?: string, dateTo?: string) {
     queryKey: ["metrics", "latency", dateFrom, dateTo],
     queryFn: () =>
       api
-        .get<LatencyDataPoint[]>("/metrics/latency", {
+        .get<LatencyMetrics>("/metrics/latency", {
           params: { start: dateFrom, end: dateTo },
         })
         .then((r) => r.data),

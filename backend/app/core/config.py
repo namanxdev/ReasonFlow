@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     # Gmail OAuth
     GMAIL_CLIENT_ID: str = ""
     GMAIL_CLIENT_SECRET: str = ""
-    GMAIL_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/gmail/callback"
+    GMAIL_REDIRECT_URI: str = "http://localhost:3000/auth/gmail/callback"
 
     # JWT Authentication
     JWT_SECRET_KEY: str = "change-me-in-production"

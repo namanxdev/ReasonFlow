@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, oauth2_scheme
-from app.core.security import create_access_token
+from app.core.security import create_access_token, decode_token
 from app.integrations.gmail.oauth import get_oauth_url
 from app.models.user import User
 from app.schemas.auth import (
@@ -76,10 +76,11 @@ async def refresh(
     response_model=GmailUrlResponse,
     summary="Get the Gmail OAuth consent URL",
 )
-async def gmail_oauth_url(
-    _user: User = Depends(get_current_user),
-) -> GmailUrlResponse:
-    """Return the Google OAuth consent URL for Gmail/Calendar scopes."""
+async def gmail_oauth_url() -> GmailUrlResponse:
+    """Return the Google OAuth consent URL for Gmail/Calendar scopes.
+
+    No authentication required – the consent URL is not user-specific.
+    """
     url = get_oauth_url()
     return GmailUrlResponse(url=url)
 
@@ -87,13 +88,47 @@ async def gmail_oauth_url(
 @router.post(
     "/gmail/callback",
     response_model=GmailCallbackResponse,
-    summary="Exchange OAuth code for tokens",
+    summary="Exchange OAuth code for tokens (login or link)",
 )
 async def gmail_callback(
     body: GmailCallbackRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
 ) -> GmailCallbackResponse:
-    """Exchange the Google OAuth authorization code and link the Gmail account."""
-    result = await auth_service.handle_gmail_callback(db, user, body.code)
-    return GmailCallbackResponse(status=result["status"], email=result["email"])
+    """Exchange the Google OAuth authorization code.
+
+    Works in two modes:
+    - **Authenticated** (Authorization header present): links Gmail to the
+      existing user account.
+    - **Unauthenticated**: performs a login-via-Gmail flow – finds or creates
+      a user by their Gmail address and returns a JWT.
+    """
+    # Try to extract the current user from the Authorization header.
+    user: User | None = None
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header.removeprefix("Bearer ").strip()
+        if token:
+            try:
+                payload = decode_token(token)
+                email = payload.get("sub")
+                if email:
+                    from sqlalchemy import select
+                    result = await db.execute(select(User).where(User.email == email))
+                    user = result.scalars().first()
+            except Exception:
+                pass  # Token invalid/expired – fall through to unauthenticated flow.
+
+    if user is not None:
+        # Authenticated flow – link Gmail to existing account.
+        result = await auth_service.handle_gmail_callback(db, user, body.code)
+        return GmailCallbackResponse(status=result["status"], email=result["email"])
+
+    # Unauthenticated flow – login / register via Gmail.
+    result = await auth_service.handle_gmail_login(db, body.code)
+    return GmailCallbackResponse(
+        status=result["status"],
+        email=result["email"],
+        access_token=result.get("access_token"),
+        token_type="bearer" if result.get("access_token") else None,
+    )

@@ -38,6 +38,12 @@ export default function GmailCallbackPage() {
         const response = await api.post("/auth/gmail/callback", { code });
         setConnectedEmail(response.data.email || "");
         setStatus("success");
+
+        // If the server returned a JWT (unauthenticated Gmail login flow),
+        // store it so the user is logged in.
+        if (response.data.access_token) {
+          localStorage.setItem("rf_access_token", response.data.access_token);
+        }
       } catch (err: any) {
         setStatus("error");
         setErrorMessage(

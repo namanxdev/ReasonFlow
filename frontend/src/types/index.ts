@@ -108,11 +108,21 @@ export interface IntentDistribution {
   percentage: number;
 }
 
-export interface LatencyDataPoint {
-  timestamp: string;
-  total_cycle_ms: number;
-  classification_ms: number;
-  generation_ms: number;
+export interface LatencyPercentiles {
+  p50: number;
+  p90: number;
+  p99: number;
+  mean: number;
+  min: number;
+  max: number;
+}
+
+export interface LatencyMetrics {
+  overall: LatencyPercentiles;
+  by_step: Record<string, LatencyPercentiles>;
+  sample_count: number;
+  start: string | null;
+  end: string | null;
 }
 
 export interface ToolAccuracy {

@@ -52,11 +52,14 @@ class Email(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         DateTime(timezone=True), nullable=False
     )
     classification: Mapped[EmailClassification | None] = mapped_column(
-        Enum(EmailClassification), nullable=True
+        Enum(EmailClassification, values_callable=lambda obj: [e.value for e in obj]),
+        nullable=True,
     )
     confidence: Mapped[float | None] = mapped_column(nullable=True)
     status: Mapped[EmailStatus] = mapped_column(
-        Enum(EmailStatus), default=EmailStatus.PENDING, nullable=False
+        Enum(EmailStatus, values_callable=lambda obj: [e.value for e in obj]),
+        default=EmailStatus.PENDING,
+        nullable=False,
     )
     draft_response: Mapped[str | None] = mapped_column(Text, nullable=True)
 

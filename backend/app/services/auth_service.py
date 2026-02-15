@@ -170,6 +170,81 @@ async def handle_gmail_callback(
     return {"status": "connected", "email": gmail_email}
 
 
+async def handle_gmail_login(
+    db: AsyncSession, code: str
+) -> dict[str, str]:
+    """Exchange the OAuth code, find or create the user, and return a JWT.
+
+    This supports the unauthenticated "Login with Gmail" flow.
+
+    Returns a dict with ``status``, ``email``, and ``access_token``.
+    """
+    try:
+        token_data = await exchange_code(code)
+    except httpx.HTTPStatusError as exc:
+        logger.warning("Gmail OAuth code exchange failed: %s %s", exc.response.status_code, exc.response.text)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired OAuth authorization code.",
+        ) from exc
+    except httpx.RequestError as exc:
+        logger.error("Network error during Gmail OAuth exchange: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to reach Google authorization server.",
+        ) from exc
+
+    access_token_google: str = token_data.get("access_token", "")
+    refresh_token_google: str = token_data.get("refresh_token", "")
+
+    # Resolve the Gmail address.
+    gmail_email = ""
+    try:
+        async with httpx.AsyncClient() as http_client:
+            profile_resp = await http_client.get(
+                _GMAIL_PROFILE_URL,
+                headers={"Authorization": f"Bearer {access_token_google}"},
+            )
+            profile_resp.raise_for_status()
+            gmail_email = profile_resp.json().get("emailAddress", "")
+    except Exception as exc:
+        logger.warning("Could not resolve Gmail profile email: %s", exc)
+
+    if not gmail_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not determine Gmail address from Google.",
+        )
+
+    # Find or create user.
+    result = await db.execute(select(User).where(User.email == gmail_email))
+    user: User | None = result.scalars().first()
+
+    if user is None:
+        # Auto-register; use a random unusable password since they login via OAuth.
+        import secrets
+        user = User(
+            email=gmail_email,
+            hashed_password=hash_password(secrets.token_urlsafe(32)),
+        )
+        db.add(user)
+        await db.flush()
+        await db.refresh(user)
+        logger.info("Auto-registered Gmail user email=%s id=%s", gmail_email, user.id)
+
+    # Store / update OAuth tokens.
+    user.oauth_token_encrypted = encrypt_oauth_token(access_token_google)
+    if refresh_token_google:
+        user.oauth_refresh_token_encrypted = encrypt_oauth_token(refresh_token_google)
+    await db.flush()
+
+    # Issue a JWT.
+    jwt_token = create_access_token({"sub": user.email})
+    logger.info("Gmail login successful for email=%s", gmail_email)
+
+    return {"status": "connected", "email": gmail_email, "access_token": jwt_token}
+
+
 async def _resolve_gmail_address(user: User, access_token: str) -> str:
     """Fetch the Gmail profile address; fall back to the registered email on failure."""
     try:
