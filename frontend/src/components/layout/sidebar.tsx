@@ -16,11 +16,15 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Calendar,
+  Users,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { icon: Inbox, label: "Inbox", href: "/inbox" },
   { icon: FileEdit, label: "Drafts", href: "/drafts" },
+  { icon: Calendar, label: "Calendar", href: "/calendar" },
+  { icon: Users, label: "CRM", href: "/crm" },
   { icon: BarChart3, label: "Metrics", href: "/metrics" },
   { icon: GitBranch, label: "Traces", href: "/traces" },
 ];

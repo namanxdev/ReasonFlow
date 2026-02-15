@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
-from app.schemas.metrics import IntentMetrics, LatencyMetrics, ToolMetrics
+from app.schemas.metrics import IntentMetrics, LatencyMetrics, SummaryStats, ToolMetrics
 from app.services import metrics_service
 
 router = APIRouter()
@@ -62,3 +62,17 @@ async def tool_metrics(
     """Return success rates and latency stats for agent tools."""
     data = await metrics_service.get_tool_metrics(db, user.id, start, end)
     return ToolMetrics(**data)
+
+
+@router.get(
+    "/summary",
+    response_model=SummaryStats,
+    summary="High-level KPI summary",
+)
+async def summary_stats(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> SummaryStats:
+    """Return high-level KPI summary: total processed, avg response time, approval & review rates."""
+    data = await metrics_service.get_summary_stats(db, user.id)
+    return SummaryStats(**data)

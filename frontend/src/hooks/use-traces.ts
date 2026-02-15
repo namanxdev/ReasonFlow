@@ -8,7 +8,7 @@ export function useTraces(page: number = 1, pageSize: number = 20) {
     queryFn: () =>
       api
         .get<PaginatedResponse<TraceRun>>("/traces", {
-          params: { page, page_size: pageSize },
+          params: { limit: pageSize, offset: (page - 1) * pageSize },
         })
         .then((r) => r.data),
   });

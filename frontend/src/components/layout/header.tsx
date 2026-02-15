@@ -6,6 +6,8 @@ import { ChevronRight } from "lucide-react";
 const ROUTE_TITLES: Record<string, string> = {
   "/inbox": "Inbox",
   "/drafts": "Draft Review",
+  "/calendar": "Calendar",
+  "/crm": "CRM Contacts",
   "/metrics": "Metrics",
   "/traces": "Traces",
 };

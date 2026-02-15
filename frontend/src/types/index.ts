@@ -75,6 +75,7 @@ export interface Contact {
   name: string;
   company: string;
   title: string;
+  phone: string | null;
   last_interaction: string;
   notes: string;
   tags: string[];
@@ -135,8 +136,7 @@ export interface PaginatedResponse<T> {
   items: T[];
   total: number;
   page: number;
-  page_size: number;
-  total_pages: number;
+  per_page: number;
 }
 
 export interface EmailFilters {

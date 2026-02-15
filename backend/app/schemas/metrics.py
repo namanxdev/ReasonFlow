@@ -105,3 +105,14 @@ class ToolMetrics(BaseModel):
     tools: list[ToolMetricEntry] = Field(description="Per-tool statistics")
     start: datetime | None = Field(default=None, description="Reporting window start")
     end: datetime | None = Field(default=None, description="Reporting window end")
+
+
+class SummaryStats(BaseModel):
+    """Response for GET /metrics/summary — high-level KPI summary."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    total_emails_processed: int = Field(ge=0, description="Total emails that have been processed")
+    average_response_time_ms: float = Field(ge=0.0, description="Mean end-to-end agent latency in ms")
+    approval_rate: float = Field(ge=0.0, le=1.0, description="Fraction of drafts that were approved (0–1)")
+    human_review_rate: float = Field(ge=0.0, le=1.0, description="Fraction of drafts requiring human review (0–1)")

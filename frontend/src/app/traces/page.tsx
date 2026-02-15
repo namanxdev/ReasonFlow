@@ -21,7 +21,7 @@ export default function TracesPage() {
   const { data, isLoading } = useTraces(page, pageSize);
 
   const traces = data?.items || [];
-  const totalPages = data?.total_pages || 1;
+  const totalPages = data ? Math.ceil(data.total / data.per_page) || 1 : 1;
   const total = data?.total || 0;
 
   const handlePreviousPage = () => {

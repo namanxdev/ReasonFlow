@@ -1,11 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
-import type { Email } from "@/types";
+import type { Email, PaginatedResponse } from "@/types";
 
 export function useDrafts() {
   return useQuery({
     queryKey: ["drafts"],
-    queryFn: () => api.get<Email[]>("/drafts").then((r) => r.data),
+    queryFn: () =>
+      api
+        .get<PaginatedResponse<Email>>("/drafts")
+        .then((r) => r.data.items),
   });
 }
 
@@ -44,7 +47,7 @@ export function useEditDraft() {
       draft_response: string;
     }) =>
       api
-        .put<Email>(`/drafts/${id}`, { draft_response })
+        .put<Email>(`/drafts/${id}`, { content: draft_response })
         .then((r) => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["drafts"] });

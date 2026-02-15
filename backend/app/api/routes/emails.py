@@ -54,7 +54,7 @@ async def list_emails(
     )
 
 
-@router.get(
+@router.post(
     "/sync",
     summary="Fetch and store new emails from Gmail",
 )

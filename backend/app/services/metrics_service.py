@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent_log import AgentLog
-from app.models.email import Email
+from app.models.email import Email, EmailStatus
 from app.models.tool_execution import ToolExecution
 
 logger = logging.getLogger(__name__)
@@ -251,4 +251,84 @@ def _compute_percentiles(values: list[float]) -> dict[str, float]:
         "mean": round(sum(values) / n, 2),
         "min": round(sorted_values[0], 2),
         "max": round(sorted_values[-1], 2),
+    }
+
+
+async def get_summary_stats(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+) -> dict[str, Any]:
+    """Return high-level KPI summary for the current user.
+
+    Returns a dict matching the ``SummaryStats`` schema shape.
+    """
+    # Total emails that have been processed (any status beyond 'pending').
+    processed_statuses = [
+        EmailStatus.DRAFTED,
+        EmailStatus.NEEDS_REVIEW,
+        EmailStatus.APPROVED,
+        EmailStatus.SENT,
+        EmailStatus.REJECTED,
+    ]
+    total_query = select(func.count(Email.id)).where(
+        Email.user_id == user_id,
+        Email.status.in_(processed_statuses),
+    )
+    total_result = await db.execute(total_query)
+    total_emails_processed = total_result.scalar() or 0
+
+    # Average response time — mean of per-trace total latency.
+    email_id_subquery = (
+        select(Email.id)
+        .where(Email.user_id == user_id)
+        .scalar_subquery()
+    )
+    log_query = select(AgentLog.trace_id, func.sum(AgentLog.latency_ms).label("total_latency")).where(
+        AgentLog.email_id.in_(email_id_subquery)
+    ).group_by(AgentLog.trace_id)
+    log_result = await db.execute(log_query)
+    trace_latencies = [row.total_latency for row in log_result.all()]
+    average_response_time_ms = (
+        sum(trace_latencies) / len(trace_latencies) if trace_latencies else 0.0
+    )
+
+    # Approval rate — emails sent / (sent + rejected + needs_review + drafted).
+    review_statuses = [
+        EmailStatus.DRAFTED,
+        EmailStatus.NEEDS_REVIEW,
+        EmailStatus.APPROVED,
+        EmailStatus.SENT,
+        EmailStatus.REJECTED,
+    ]
+    draft_total_query = select(func.count(Email.id)).where(
+        Email.user_id == user_id,
+        Email.status.in_(review_statuses),
+    )
+    draft_total_result = await db.execute(draft_total_query)
+    draft_total = draft_total_result.scalar() or 0
+
+    approved_query = select(func.count(Email.id)).where(
+        Email.user_id == user_id,
+        Email.status.in_([EmailStatus.APPROVED, EmailStatus.SENT]),
+    )
+    approved_result = await db.execute(approved_query)
+    approved_count = approved_result.scalar() or 0
+
+    approval_rate = (approved_count / draft_total) if draft_total > 0 else 0.0
+
+    # Human review rate — needs_review / total processed.
+    review_query = select(func.count(Email.id)).where(
+        Email.user_id == user_id,
+        Email.status == EmailStatus.NEEDS_REVIEW,
+    )
+    review_result = await db.execute(review_query)
+    review_count = review_result.scalar() or 0
+
+    human_review_rate = (review_count / total_emails_processed) if total_emails_processed > 0 else 0.0
+
+    return {
+        "total_emails_processed": total_emails_processed,
+        "average_response_time_ms": round(average_response_time_ms, 2),
+        "approval_rate": round(approval_rate, 4),
+        "human_review_rate": round(human_review_rate, 4),
     }

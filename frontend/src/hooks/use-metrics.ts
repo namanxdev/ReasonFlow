@@ -12,10 +12,10 @@ export function useIntentDistribution(dateFrom?: string, dateTo?: string) {
     queryKey: ["metrics", "intents", dateFrom, dateTo],
     queryFn: () =>
       api
-        .get<IntentDistribution[]>("/metrics/intents", {
-          params: { date_from: dateFrom, date_to: dateTo },
+        .get<{ buckets: IntentDistribution[]; total: number }>("/metrics/intents", {
+          params: { start: dateFrom, end: dateTo },
         })
-        .then((r) => r.data),
+        .then((r) => r.data.buckets),
   });
 }
 
@@ -25,7 +25,7 @@ export function useLatencyStats(dateFrom?: string, dateTo?: string) {
     queryFn: () =>
       api
         .get<LatencyDataPoint[]>("/metrics/latency", {
-          params: { date_from: dateFrom, date_to: dateTo },
+          params: { start: dateFrom, end: dateTo },
         })
         .then((r) => r.data),
   });
@@ -35,7 +35,9 @@ export function useToolAccuracy() {
   return useQuery({
     queryKey: ["metrics", "tools"],
     queryFn: () =>
-      api.get<ToolAccuracy[]>("/metrics/tools").then((r) => r.data),
+      api
+        .get<{ tools: ToolAccuracy[] }>("/metrics/tools")
+        .then((r) => r.data.tools),
   });
 }
 

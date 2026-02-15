@@ -133,14 +133,15 @@ export default function InboxPage() {
 
   const handleNextPage = () => {
     if (!data) return;
+    const maxPage = Math.ceil(data.total / data.per_page) || 1;
     setFilters((prev) => ({
       ...prev,
-      page: Math.min(data.total_pages, (prev.page || 1) + 1),
+      page: Math.min(maxPage, (prev.page || 1) + 1),
     }));
   };
 
   const currentPage = filters.page || 1;
-  const totalPages = data?.total_pages || 1;
+  const totalPages = data ? Math.ceil(data.total / data.per_page) || 1 : 1;
   const emails = data?.items || [];
 
   return (

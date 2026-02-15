@@ -1,0 +1,40 @@
+# ReasonFlow Backend Dependencies
+# Generated from pyproject.toml
+
+# Web framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# LLM / Agent
+langchain>=0.2.0
+langchain-google-genai>=1.0.0
+langgraph>=0.2.0
+google-generativeai>=0.7.0
+
+# Data validation
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Database
+sqlalchemy[asyncio]>=2.0.23
+asyncpg>=0.29.0
+alembic>=1.13.0
+pgvector>=0.2.4
+
+# Cache / Rate limiting
+redis>=5.0.0
+
+# HTTP client
+httpx>=0.25.0
+
+# Resilience
+tenacity>=8.2.0
+
+# Auth / Security
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+cryptography>=41.0.0
+
+# Email validation
+email-validator>=2.1.0
