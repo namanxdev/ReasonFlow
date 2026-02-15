@@ -48,7 +48,12 @@ def create_app() -> FastAPI:
 
     # Import and include routers (deferred to avoid circular imports)
     from app.api.router import api_router
+    from app.api.middleware.error_handler import register_exception_handlers
+
     app.include_router(api_router, prefix="/api/v1")
+
+    # Global exception handlers
+    register_exception_handlers(app)
 
     return app
 
