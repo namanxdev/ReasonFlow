@@ -1,0 +1,187 @@
+"""Authentication business logic."""
+
+from __future__ import annotations
+
+import logging
+
+import httpx
+from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
+from app.core.security import (
+    create_access_token,
+    decode_token,
+    encrypt_oauth_token,
+    hash_password,
+    verify_password,
+)
+from app.integrations.gmail.oauth import exchange_code
+from app.models.user import User
+from app.schemas.auth import TokenResponse
+
+logger = logging.getLogger(__name__)
+
+_GMAIL_PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile"
+
+
+async def register(db: AsyncSession, email: str, password: str) -> User:
+    """Create a new user with a hashed password.
+
+    Raises HTTP 409 if the email address is already registered.
+    """
+    result = await db.execute(select(User).where(User.email == email))
+    existing = result.scalars().first()
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A user with this email address already exists.",
+        )
+
+    user = User(
+        email=email,
+        hashed_password=hash_password(password),
+    )
+    db.add(user)
+    await db.flush()  # Populate user.id without committing the transaction.
+    await db.refresh(user)
+    logger.info("Registered new user email=%s id=%s", email, user.id)
+    return user
+
+
+async def login(db: AsyncSession, email: str, password: str) -> TokenResponse:
+    """Verify credentials and return a JWT access token.
+
+    Raises HTTP 401 if the email is not found or the password is wrong.
+    """
+    result = await db.execute(select(User).where(User.email == email))
+    user: User | None = result.scalars().first()
+
+    if user is None or not verify_password(password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token_data = {"sub": user.email}
+    access_token = create_access_token(token_data)
+    logger.info("User logged in email=%s", email)
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=settings.JWT_EXPIRATION_MINUTES * 60,
+    )
+
+
+async def refresh_token(db: AsyncSession, refresh_token_str: str) -> TokenResponse:
+    """Validate a refresh token and issue a new access token.
+
+    Raises HTTP 401 if the token is invalid, expired, or not a refresh token.
+    Raises HTTP 404 if the user referenced in the token no longer exists.
+    """
+    try:
+        payload = decode_token(refresh_token_str)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+
+    if payload.get("type") != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token is not a refresh token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    subject: str | None = payload.get("sub")
+    if not subject:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token subject is missing.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    result = await db.execute(select(User).where(User.email == subject))
+    user: User | None = result.scalars().first()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
+
+    new_access_token = create_access_token({"sub": user.email})
+    logger.info("Refreshed access token for email=%s", user.email)
+    return TokenResponse(
+        access_token=new_access_token,
+        token_type="bearer",
+        expires_in=None,
+    )
+
+
+async def handle_gmail_callback(
+    db: AsyncSession, user: User, code: str
+) -> dict[str, str]:
+    """Exchange the OAuth authorization code for tokens, encrypt, and persist them.
+
+    Returns a dict with ``status`` and the connected Gmail ``email``.
+
+    Raises HTTP 400 if Google rejects the authorization code.
+    Raises HTTP 502 if the token exchange network request fails.
+    """
+    try:
+        token_data = await exchange_code(code)
+    except httpx.HTTPStatusError as exc:
+        logger.warning(
+            "Gmail OAuth code exchange failed for user=%s: %s %s",
+            user.id,
+            exc.response.status_code,
+            exc.response.text,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired OAuth authorization code.",
+        ) from exc
+    except httpx.RequestError as exc:
+        logger.error("Network error during Gmail OAuth exchange for user=%s: %s", user.id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to reach Google authorization server.",
+        ) from exc
+
+    access_token: str = token_data.get("access_token", "")
+    refresh_token_value: str = token_data.get("refresh_token", "")
+
+    user.oauth_token_encrypted = encrypt_oauth_token(access_token)
+    if refresh_token_value:
+        user.oauth_refresh_token_encrypted = encrypt_oauth_token(refresh_token_value)
+
+    await db.flush()
+
+    # Resolve the Gmail address that was connected.
+    gmail_email = await _resolve_gmail_address(user, access_token)
+
+    logger.info(
+        "Gmail OAuth connected for user=%s gmail_email=%s", user.id, gmail_email
+    )
+    return {"status": "connected", "email": gmail_email}
+
+
+async def _resolve_gmail_address(user: User, access_token: str) -> str:
+    """Fetch the Gmail profile address; fall back to the registered email on failure."""
+    try:
+        async with httpx.AsyncClient() as http_client:
+            profile_response = await http_client.get(
+                _GMAIL_PROFILE_URL,
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            profile_response.raise_for_status()
+            return profile_response.json().get("emailAddress", "")
+    except Exception as exc:
+        logger.warning(
+            "Could not resolve Gmail profile email for user=%s: %s", user.id, exc
+        )
+        return user.email  # Fall back to the registered email.
