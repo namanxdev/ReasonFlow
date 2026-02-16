@@ -66,6 +66,18 @@ async def sync_emails(
     return await email_service.sync_emails(db, user)
 
 
+@router.post(
+    "/classify",
+    summary="Classify all unclassified emails",
+)
+async def classify_emails(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, int]:
+    """Trigger classification for all emails without a classification."""
+    return await email_service.classify_unclassified_emails(db, user.id)
+
+
 @router.get(
     "/{email_id}",
     response_model=EmailDetailResponse,

@@ -13,9 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useEmails, useSyncEmails } from "@/hooks/use-emails";
+import { useEmails, useSyncEmails, useClassifyEmails } from "@/hooks/use-emails";
 import type { EmailFilters, EmailClassification, EmailStatus } from "@/types";
-import { RefreshCw, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { RefreshCw, Search, ChevronLeft, ChevronRight, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const CLASSIFICATIONS: EmailClassification[] = [
@@ -50,6 +50,7 @@ export default function InboxPage() {
 
   const { data, isLoading } = useEmails(filters);
   const syncMutation = useSyncEmails();
+  const classifyMutation = useClassifyEmails();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -67,9 +68,7 @@ export default function InboxPage() {
     syncMutation.mutate(undefined, {
       onSuccess: (result) => {
         toast.success(
-          `Successfully synced ${result.new_count} new email${
-            result.new_count !== 1 ? "s" : ""
-          }`
+          `Synced ${result.created} new email${result.created !== 1 ? "s" : ""} (${result.fetched} checked)`
         );
       },
       onError: (error) => {
@@ -77,6 +76,21 @@ export default function InboxPage() {
           `Failed to sync emails: ${
             error instanceof Error ? error.message : "Unknown error"
           }`
+        );
+      },
+    });
+  };
+
+  const handleClassify = () => {
+    classifyMutation.mutate(undefined, {
+      onSuccess: (result) => {
+        toast.success(
+          `Classified ${result.classified} email${result.classified !== 1 ? "s" : ""}${result.failed > 0 ? ` (${result.failed} failed)` : ""}`
+        );
+      },
+      onError: (error) => {
+        toast.error(
+          `Failed to classify: ${error instanceof Error ? error.message : "Unknown error"}`
         );
       },
     });
@@ -154,16 +168,30 @@ export default function InboxPage() {
               Manage and process your incoming emails
             </p>
           </div>
-          <Button
-            onClick={handleSync}
-            disabled={syncMutation.isPending}
-            variant="default"
-          >
-            <RefreshCw
-              className={syncMutation.isPending ? "animate-spin" : ""}
-            />
-            Sync
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleClassify}
+              disabled={classifyMutation.isPending}
+              variant="outline"
+            >
+              {classifyMutation.isPending ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <Sparkles className="size-4" />
+              )}
+              Classify All
+            </Button>
+            <Button
+              onClick={handleSync}
+              disabled={syncMutation.isPending}
+              variant="default"
+            >
+              <RefreshCw
+                className={syncMutation.isPending ? "animate-spin" : ""}
+              />
+              Sync
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">

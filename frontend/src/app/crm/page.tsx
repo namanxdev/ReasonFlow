@@ -6,11 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useContact, useUpdateContact } from "@/hooks/use-crm";
+import { useContact, useContacts, useUpdateContact } from "@/hooks/use-crm";
 import {
   Search,
   Loader2,
   User,
+  Users,
   Building2,
   Briefcase,
   Phone,
@@ -46,6 +47,7 @@ export default function CrmPage() {
   const [editTags, setEditTags] = useState("");
   const [isEditing, setIsEditing] = useState(false);
 
+  const { data: contacts, isLoading: contactsLoading } = useContacts();
   const {
     data: contact,
     isLoading,
@@ -132,6 +134,65 @@ export default function CrmPage() {
                 Look Up
               </Button>
             </form>
+          </CardContent>
+        </Card>
+
+        {/* All Contacts */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="size-5" />
+              All Contacts
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {contactsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : contacts && contacts.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {contacts.map((c) => (
+                  <div
+                    key={c.email}
+                    className="border rounded-lg p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => {
+                      setSearchEmail(c.email);
+                      setActiveEmail(c.email);
+                      setIsEditing(false);
+                    }}
+                  >
+                    <p className="font-medium text-sm truncate">
+                      {c.name || c.email}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {c.email}
+                    </p>
+                    {c.company && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {c.company}
+                      </p>
+                    )}
+                    {c.tags && c.tags.length > 0 && (
+                      <div className="flex gap-1 mt-2">
+                        {c.tags.slice(0, 3).map((tag) => (
+                          <span
+                            key={tag}
+                            className="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No contacts yet. Sync your emails to auto-populate contacts.
+              </p>
+            )}
           </CardContent>
         </Card>
 

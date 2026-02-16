@@ -24,7 +24,18 @@ export function useSyncEmails() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () =>
-      api.post<{ new_count: number }>("/emails/sync").then((r) => r.data),
+      api.post<{ fetched: number; created: number }>("/emails/sync").then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+    },
+  });
+}
+
+export function useClassifyEmails() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api.post<{ classified: number; failed: number }>("/emails/classify").then((r) => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["emails"] });
     },

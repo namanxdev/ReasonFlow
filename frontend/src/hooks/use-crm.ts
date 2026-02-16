@@ -11,6 +11,16 @@ export interface ContactUpdatePayload {
   tags?: string[];
 }
 
+export function useContacts(query?: string) {
+  return useQuery({
+    queryKey: ["crm", "contacts", query],
+    queryFn: () =>
+      api
+        .get<Contact[]>(`/crm/contacts`, { params: query ? { q: query } : {} })
+        .then((r) => r.data),
+  });
+}
+
 export function useContact(email: string) {
   return useQuery({
     queryKey: ["crm", "contact", email],

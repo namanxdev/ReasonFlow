@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx next build)"
+      "Bash(npx next build)",
+      "Bash(/e/Projects/ReasonFlow/backend/venv/Scripts/python -m pytest backend/tests/services/test_auth_service.py -x -q)",
+      "Bash(py -m pytest:*)",
+      "Bash(python -m ruff check:*)",
+      "Bash(npx eslint:*)"
     ]
   }
 }

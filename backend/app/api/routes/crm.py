@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.deps import get_current_user
 from app.integrations.crm.factory import get_crm_client
@@ -10,6 +10,24 @@ from app.models.user import User
 from app.schemas.crm import ContactResponse, ContactUpdateRequest
 
 router = APIRouter()
+
+
+@router.get(
+    "/contacts",
+    response_model=list[ContactResponse],
+    summary="List all contacts or search",
+)
+async def list_contacts(
+    q: str | None = Query(None, description="Search query"),
+    _user: User = Depends(get_current_user),
+) -> list[ContactResponse]:
+    """List all CRM contacts, optionally filtered by a search query."""
+    client = get_crm_client()
+    if q:
+        results = await client.search_contacts(q)
+    else:
+        results = await client.search_contacts("")  # returns all
+    return [ContactResponse(**c) for c in results]
 
 
 @router.get(

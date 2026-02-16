@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
+import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 from fastapi import HTTPException, status
@@ -13,8 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import decrypt_oauth_token
 from app.integrations.gmail.client import GmailClient
+from app.llm.client import get_gemini_client
 from app.models.agent_log import AgentLog
-from app.models.email import Email, EmailStatus
+from app.models.email import Email, EmailClassification, EmailStatus
 from app.models.user import User
 from app.schemas.email import EmailFilterParams
 
@@ -172,11 +174,11 @@ async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
             try:
                 received_at = datetime.fromisoformat(received_at_raw)
             except ValueError:
-                received_at = datetime.now(timezone.utc)
+                received_at = datetime.now(UTC)
         elif isinstance(received_at_raw, datetime):
             received_at = received_at_raw
         else:
-            received_at = datetime.now(timezone.utc)
+            received_at = datetime.now(UTC)
 
         email = Email(
             user_id=user.id,
@@ -193,6 +195,39 @@ async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
         created += 1
 
     await db.flush()
+
+    # Auto-populate CRM contacts from unique senders
+    try:
+        from app.integrations.crm.factory import get_crm_client
+
+        crm = get_crm_client()
+        seen_senders: set[str] = set()
+        for raw in raw_emails:
+            sender = raw.get("sender", "")
+            email_match = re.search(r"<([^>]+)>", sender)
+            sender_email = email_match.group(1) if email_match else sender
+            sender_email = sender_email.strip().lower()
+
+            if not sender_email or sender_email in seen_senders:
+                continue
+            seen_senders.add(sender_email)
+
+            existing = await crm.get_contact(sender_email)
+            if existing is None:
+                name = sender.split("<")[0].strip().strip('"') if "<" in sender else ""
+                await crm.update_contact(
+                    sender_email,
+                    {
+                        "name": name,
+                        "company": "",
+                        "title": "",
+                        "notes": "Auto-created from email sync",
+                        "tags": ["auto-synced"],
+                    },
+                )
+    except Exception as crm_exc:
+        logger.warning("CRM auto-populate failed: %s", crm_exc)
+
     logger.info(
         "Email sync for user=%s: fetched=%d created=%d",
         user.id,
@@ -200,6 +235,51 @@ async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
         created,
     )
     return {"fetched": len(raw_emails), "created": created}
+
+
+async def classify_unclassified_emails(db: AsyncSession, user_id: uuid.UUID) -> dict[str, int]:
+    """Classify all emails that don't have a classification yet."""
+    result = await db.execute(
+        select(Email).where(
+            Email.user_id == user_id,
+            Email.classification.is_(None),
+        )
+    )
+    emails = list(result.scalars().all())
+
+    if not emails:
+        return {"classified": 0, "failed": 0}
+
+    gemini = get_gemini_client()
+    classified = 0
+    failed = 0
+
+    for email in emails:
+        try:
+            intent_result = await gemini.classify_intent(
+                subject=email.subject,
+                body=email.body[:2000],
+                sender=email.sender,
+            )
+            classification_value = intent_result.intent.lower()
+            try:
+                email.classification = EmailClassification(classification_value)
+            except ValueError:
+                email.classification = EmailClassification.OTHER
+            email.confidence = max(0.0, min(1.0, intent_result.confidence))
+            classified += 1
+        except Exception as exc:
+            logger.warning(
+                "Classification failed for email=%s: %s", email.id, exc
+            )
+            failed += 1
+
+    await db.flush()
+    logger.info(
+        "Batch classification for user=%s: classified=%d failed=%d",
+        user_id, classified, failed,
+    )
+    return {"classified": classified, "failed": failed}
 
 
 async def process_email(
