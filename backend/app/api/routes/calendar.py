@@ -24,16 +24,16 @@ router = APIRouter()
 
 def _build_calendar_client(user: User) -> CalendarClient:
     """Construct a CalendarClient from the user's encrypted OAuth credentials."""
-    if not user.oauth_access_token:
+    if not user.oauth_token_encrypted:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Gmail / Calendar account not connected. Complete the OAuth flow first.",
         )
     credentials: dict[str, str] = {
-        "access_token": decrypt_oauth_token(user.oauth_access_token),
+        "access_token": decrypt_oauth_token(user.oauth_token_encrypted),
     }
-    if user.oauth_refresh_token:
-        credentials["refresh_token"] = decrypt_oauth_token(user.oauth_refresh_token)
+    if user.oauth_refresh_token_encrypted:
+        credentials["refresh_token"] = decrypt_oauth_token(user.oauth_refresh_token_encrypted)
     return CalendarClient(credentials)
 
 
@@ -67,6 +67,37 @@ async def check_availability(
         checked_range_start=start,
         checked_range_end=end,
     )
+
+
+@router.get(
+    "/events",
+    summary="List calendar events",
+)
+async def list_events(
+    start: datetime = Query(..., description="Start of range"),
+    end: datetime = Query(..., description="End of range"),
+    user: User = Depends(get_current_user),
+) -> list[dict]:
+    """Return calendar events within the requested date range."""
+    client = _build_calendar_client(user)
+    try:
+        events = await client.list_events(time_min=start, time_max=end)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Calendar API error: {exc}",
+        ) from exc
+    return [
+        {
+            "id": e.get("id", ""),
+            "title": e.get("summary", "Untitled"),
+            "start": e.get("start", {}).get("dateTime", e.get("start", {}).get("date", "")),
+            "end": e.get("end", {}).get("dateTime", e.get("end", {}).get("date", "")),
+            "attendees": [a.get("email", "") for a in e.get("attendees", [])],
+            "html_link": e.get("htmlLink", ""),
+        }
+        for e in events
+    ]
 
 
 @router.post(

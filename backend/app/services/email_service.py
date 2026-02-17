@@ -6,6 +6,7 @@ import logging
 import re
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 from fastapi import HTTPException, status
@@ -68,12 +69,22 @@ async def list_emails(
     count_result = await db.execute(count_query)
     total = len(count_result.scalars().all())
 
+    # Dynamic sorting
+    allowed_sort_fields = {
+        "received_at": Email.received_at,
+        "sender": Email.sender,
+        "subject": Email.subject,
+        "classification": Email.classification,
+        "status": Email.status,
+    }
+    sort_column = allowed_sort_fields.get(filters.sort_by or "received_at", Email.received_at)
+    if filters.sort_order == "asc":
+        query = query.order_by(sort_column.asc())
+    else:
+        query = query.order_by(sort_column.desc())
+
     offset = (filters.page - 1) * filters.per_page
-    query = (
-        query.order_by(Email.received_at.desc())
-        .offset(offset)
-        .limit(filters.per_page)
-    )
+    query = query.offset(offset).limit(filters.per_page)
 
     result = await db.execute(query)
     items = list(result.scalars().all())
@@ -282,13 +293,55 @@ async def classify_unclassified_emails(db: AsyncSession, user_id: uuid.UUID) -> 
     return {"classified": classified, "failed": failed}
 
 
+async def _run_agent_pipeline(email_id: uuid.UUID) -> None:
+    """Background task that runs the full LangGraph agent pipeline.
+
+    Opens its own database session since the request session is closed
+    by the time background tasks run.
+    """
+    from app.core.database import async_session_factory
+
+    logger.info("_run_agent_pipeline: starting for email=%s", email_id)
+
+    async with async_session_factory() as db:
+        try:
+            from app.agent.graph import process_email as agent_process_email
+
+            await agent_process_email(email_id=email_id, db_session=db)
+            logger.info("_run_agent_pipeline: completed for email=%s", email_id)
+        except BaseException as exc:
+            logger.exception(
+                "_run_agent_pipeline: failed for email=%s: %s", email_id, exc
+            )
+            # Ensure email doesn't stay stuck in processing
+            try:
+                result = await db.execute(
+                    select(Email).where(Email.id == email_id)
+                )
+                stuck_email = result.scalars().first()
+                if stuck_email and stuck_email.status == EmailStatus.PROCESSING:
+                    stuck_email.status = EmailStatus.NEEDS_REVIEW
+                    await db.commit()
+                    logger.info(
+                        "_run_agent_pipeline: set email=%s to needs_review after failure",
+                        email_id,
+                    )
+            except BaseException as recovery_exc:
+                logger.error(
+                    "_run_agent_pipeline: recovery failed for email=%s: %s",
+                    email_id,
+                    recovery_exc,
+                )
+                await db.rollback()
+
+
 async def process_email(
-    db: AsyncSession, user: User, email_id: uuid.UUID
+    db: AsyncSession, user: User, email_id: uuid.UUID, background_tasks: Any = None
 ) -> dict[str, str]:
     """Trigger agent processing pipeline for a single email.
 
-    Creates an AgentLog entry with trace_id, updates email status to
-    ``processing``, and returns the trace_id to the caller.
+    Validates ownership and status, sets the email to ``processing``,
+    then kicks off the LangGraph agent pipeline as a background task.
 
     Raises HTTP 404 if the email is not owned by the user.
     Raises HTTP 409 if the email is already being processed or has been sent.
@@ -322,7 +375,11 @@ async def process_email(
     db.add(agent_log)
 
     email.status = EmailStatus.PROCESSING
-    await db.flush()
+    await db.commit()
+
+    # Launch the agent pipeline in the background
+    if background_tasks is not None:
+        background_tasks.add_task(_run_agent_pipeline, email.id)
 
     logger.info(
         "Processing triggered for email=%s trace_id=%s user=%s",

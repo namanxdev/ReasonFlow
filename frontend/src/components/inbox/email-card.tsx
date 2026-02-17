@@ -75,15 +75,15 @@ export function EmailCard({ email, isSelected, onClick }: EmailCardProps) {
         <ClassificationBadge classification={email.classification} />
       </TableCell>
       <TableCell>
-        <div className="flex items-center gap-2">
+        <div className={cn("flex items-center gap-2 rounded-full px-2.5 py-0.5 text-xs font-medium w-fit", statusConfig.bg)}>
           <StatusIcon
             className={cn(
-              "size-4",
+              "size-3.5",
               statusConfig.color,
               email.status === "processing" && "animate-spin"
             )}
           />
-          <span className="text-sm">{statusConfig.label}</span>
+          <span className={cn("text-xs", statusConfig.color)}>{statusConfig.label}</span>
         </div>
       </TableCell>
       <TableCell className="text-muted-foreground text-sm">

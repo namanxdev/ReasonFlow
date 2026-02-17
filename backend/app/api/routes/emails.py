@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -34,6 +34,8 @@ async def list_emails(
     search: str | None = Query(None, max_length=255),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
+    sort_by: str | None = Query(None),
+    sort_order: str | None = Query("desc"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> EmailListResponse:
@@ -44,6 +46,8 @@ async def list_emails(
         search=search,
         page=page,
         per_page=per_page,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
     items, total = await email_service.list_emails(db, user.id, filters)
     return EmailListResponse(
@@ -101,11 +105,12 @@ async def get_email(
 )
 async def process_email(
     email_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> EmailProcessResponse:
     """Submit an email to the agent pipeline and return the trace id."""
-    result = await email_service.process_email(db, user, email_id)
+    result = await email_service.process_email(db, user, email_id, background_tasks)
     return EmailProcessResponse(
         trace_id=result["trace_id"],
         status=result["status"],

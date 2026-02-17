@@ -66,6 +66,8 @@ class EmailFilterParams(BaseModel):
     )
     page: int = Field(default=1, ge=1, description="Page number (1-indexed)")
     per_page: int = Field(default=20, ge=1, le=100, description="Items per page")
+    sort_by: str | None = Field(default=None, description="Sort field")
+    sort_order: str | None = Field(default="desc", description="Sort order: asc or desc")
 
 
 class EmailProcessRequest(BaseModel):

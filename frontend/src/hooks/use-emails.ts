@@ -7,7 +7,17 @@ export function useEmails(filters: EmailFilters) {
     queryKey: ["emails", filters],
     queryFn: () =>
       api
-        .get<PaginatedResponse<Email>>("/emails", { params: filters })
+        .get<PaginatedResponse<Email>>("/emails", {
+          params: {
+            status: filters.status,
+            classification: filters.classification,
+            search: filters.search,
+            page: filters.page,
+            per_page: filters.page_size,
+            sort_by: filters.sort_by,
+            sort_order: filters.sort_order,
+          },
+        })
         .then((r) => r.data),
   });
 }

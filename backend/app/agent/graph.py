@@ -282,9 +282,7 @@ async def process_email(
     if email_record is None:
         raise ValueError(f"Email with id={email_id} not found in the database.")
 
-    # Mark the email as processing.
-    email_record.status = EmailStatus.PROCESSING
-    await db_session.flush()
+    # Email is already in PROCESSING state — set by email_service.process_email
 
     email_dict: dict[str, Any] = {
         "id": str(email_record.id),

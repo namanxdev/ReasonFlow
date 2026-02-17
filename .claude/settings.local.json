@@ -5,7 +5,12 @@
       "Bash(/e/Projects/ReasonFlow/backend/venv/Scripts/python -m pytest backend/tests/services/test_auth_service.py -x -q)",
       "Bash(py -m pytest:*)",
       "Bash(python -m ruff check:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(./venv/Scripts/pytest tests/ -x -q)",
+      "Bash(./venv/Scripts/pytest tests/ -x -q --ignore=tests/integrations/test_gmail_client.py)",
+      "Bash(./venv/Scripts/pytest:*)",
+      "Bash(./venv/Scripts/ruff check app/agent/graph.py app/services/email_service.py)"
     ]
   }
 }

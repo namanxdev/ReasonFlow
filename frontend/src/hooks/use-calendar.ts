@@ -22,6 +22,8 @@ export interface CalendarEvent {
   html_link: string;
 }
 
+export type CalendarEventItem = CalendarEvent;
+
 export interface CreateEventPayload {
   title: string;
   start: string;
@@ -41,6 +43,7 @@ export function useAvailability(start?: string, end?: string) {
         })
         .then((r) => r.data),
     enabled: !!start && !!end,
+    retry: false,
   });
 }
 
@@ -52,5 +55,19 @@ export function useCreateEvent() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["calendar"] });
     },
+  });
+}
+
+export function useEvents(start?: string, end?: string) {
+  return useQuery({
+    queryKey: ["calendar", "events", start, end],
+    queryFn: () =>
+      api
+        .get<CalendarEventItem[]>("/calendar/events", {
+          params: { start, end },
+        })
+        .then((r) => r.data),
+    enabled: !!start && !!end,
+    retry: false,
   });
 }

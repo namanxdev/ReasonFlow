@@ -113,6 +113,34 @@ class CalendarClient:
         logger.info("Calendar event created: id=%s summary=%r", data.get("id"), summary)
         return data
 
+    async def list_events(
+        self,
+        time_min: datetime,
+        time_max: datetime,
+        max_results: int = 20,
+    ) -> list[dict[str, Any]]:
+        """List calendar events within the given range."""
+        if time_min.tzinfo is None:
+            time_min = time_min.replace(tzinfo=timezone.utc)
+        if time_max.tzinfo is None:
+            time_max = time_max.replace(tzinfo=timezone.utc)
+        async with httpx.AsyncClient() as client:
+            await self._refresh_if_needed(client)
+            response = await client.get(
+                f"{CALENDAR_API_BASE}/calendars/{PRIMARY_CALENDAR}/events",
+                headers=self._auth_headers(),
+                params={
+                    "timeMin": time_min.isoformat(),
+                    "timeMax": time_max.isoformat(),
+                    "maxResults": max_results,
+                    "singleEvents": "true",
+                    "orderBy": "startTime",
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+        return data.get("items", [])
+
     async def check_conflicts(self, start: datetime, end: datetime) -> bool:
         async with httpx.AsyncClient() as client:
             await self._refresh_if_needed(client)

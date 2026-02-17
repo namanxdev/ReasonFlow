@@ -9,7 +9,9 @@ import { Label } from "@/components/ui/label";
 import {
   useAvailability,
   useCreateEvent,
+  useEvents,
   type TimeSlot,
+  type CalendarEventItem,
 } from "@/hooks/use-calendar";
 import {
   Calendar as CalendarIcon,
@@ -70,6 +72,14 @@ export default function CalendarPage() {
   const { data: availability, isLoading, error } = useAvailability(startISO, endISO);
   const createEvent = useCreateEvent();
 
+  // Fetch 7 days of upcoming events (use stable date strings to avoid re-render loops)
+  const eventsStartISO = `${today}T00:00:00`;
+  const eventsEndDate = new Date(today);
+  eventsEndDate.setDate(eventsEndDate.getDate() + 7);
+  const eventsEndISO = `${eventsEndDate.toISOString().split("T")[0]}T23:59:59`;
+
+  const { data: events, isLoading: eventsLoading, error: eventsError } = useEvents(eventsStartISO, eventsEndISO);
+
   const handleCreateEvent = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -98,9 +108,9 @@ export default function CalendarPage() {
           setEventDescription("");
         },
         onError: (err: any) => {
+          const detail = err?.response?.data?.detail;
           toast.error(
-            err.response?.data?.detail ||
-              "Failed to create event. Make sure Gmail is connected."
+            detail || "Failed to create event. Make sure Gmail is connected."
           );
         },
       }
@@ -159,9 +169,13 @@ export default function CalendarPage() {
               {error && (
                 <div className="flex items-center gap-2 rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
                   <AlertCircle className="size-4 shrink-0" />
-                  {error instanceof Error
-                    ? error.message
-                    : "Failed to check availability. Make sure Gmail is connected."}
+                  {(() => {
+                    const axiosErr = error as any;
+                    const detail = axiosErr?.response?.data?.detail;
+                    if (detail) return detail;
+                    if (error instanceof Error) return error.message;
+                    return "Failed to check availability. Make sure Gmail is connected.";
+                  })()}
                 </div>
               )}
 
@@ -281,6 +295,71 @@ export default function CalendarPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Upcoming Events */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarIcon className="size-5" />
+              Upcoming Events
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {eventsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : eventsError ? (
+              <div className="flex items-center gap-2 rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+                <AlertCircle className="size-4 shrink-0" />
+                {(() => {
+                  const axiosErr = eventsError as any;
+                  const detail = axiosErr?.response?.data?.detail;
+                  if (detail) return detail;
+                  return "Failed to load events.";
+                })()}
+              </div>
+            ) : events && events.length > 0 ? (
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {events.map((event: CalendarEventItem) => (
+                  <div
+                    key={event.id}
+                    className="flex items-center gap-3 rounded-lg border p-3"
+                  >
+                    <CalendarIcon className="size-4 text-blue-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{event.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatTime(event.start)} – {formatTime(event.end)}
+                        {" · "}
+                        {formatDate(event.start)}
+                      </p>
+                      {event.attendees.length > 0 && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {event.attendees.join(", ")}
+                        </p>
+                      )}
+                    </div>
+                    {event.html_link && (
+                      <a
+                        href={event.html_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-500 hover:underline shrink-0"
+                      >
+                        Open
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground py-4 text-center">
+                No upcoming events found.
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </AppShell>
   );

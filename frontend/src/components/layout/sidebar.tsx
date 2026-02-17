@@ -39,7 +39,7 @@ interface SidebarProps {
 export function Sidebar({
   onSync,
   isSyncing = false,
-  userEmail = "user@example.com",
+  userEmail,
   onLogout,
 }: SidebarProps) {
   const pathname = usePathname();
@@ -142,11 +142,20 @@ export function Sidebar({
 
         {/* User info and logout */}
         <div className="space-y-2">
-          {isExpanded && (
-            <div className="px-3 py-1">
+          {isExpanded ? (
+            <div className="flex items-center gap-2.5 px-3 py-1">
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-zinc-700 text-xs font-medium text-zinc-200 uppercase">
+                {userEmail ? userEmail.charAt(0) : "?"}
+              </div>
               <p className="truncate text-xs text-zinc-400" title={userEmail}>
                 {userEmail}
               </p>
+            </div>
+          ) : (
+            <div className="flex justify-center py-1">
+              <div className="flex size-7 items-center justify-center rounded-full bg-zinc-700 text-xs font-medium text-zinc-200 uppercase" title={userEmail}>
+                {userEmail ? userEmail.charAt(0) : "?"}
+              </div>
             </div>
           )}
           <Button

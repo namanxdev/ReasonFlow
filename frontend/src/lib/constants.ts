@@ -38,27 +38,30 @@ export const CLASSIFICATION_COLORS: Record<
 
 export const STATUS_STYLES: Record<
   EmailStatus,
-  { color: string; label: string; icon: string }
+  { color: string; bg: string; label: string; icon: string }
 > = {
-  pending: { color: "text-gray-400", label: "Pending", icon: "Circle" },
+  pending: { color: "text-gray-500", bg: "bg-gray-100 dark:bg-gray-800/30", label: "Pending", icon: "Circle" },
   processing: {
     color: "text-blue-500",
+    bg: "bg-blue-100 dark:bg-blue-900/30",
     label: "Processing",
     icon: "Loader2",
   },
-  drafted: { color: "text-orange-500", label: "Drafted", icon: "Circle" },
+  drafted: { color: "text-orange-500", bg: "bg-orange-100 dark:bg-orange-900/30", label: "Drafted", icon: "Circle" },
   needs_review: {
-    color: "text-yellow-500",
+    color: "text-yellow-600",
+    bg: "bg-yellow-100 dark:bg-yellow-900/30",
     label: "Needs Review",
     icon: "AlertCircle",
   },
   approved: {
     color: "text-green-500",
+    bg: "bg-green-100 dark:bg-green-900/30",
     label: "Approved",
     icon: "CheckCircle",
   },
-  sent: { color: "text-blue-600", label: "Sent", icon: "CheckCheck" },
-  rejected: { color: "text-red-500", label: "Rejected", icon: "XCircle" },
+  sent: { color: "text-blue-600", bg: "bg-blue-100 dark:bg-blue-900/30", label: "Sent", icon: "CheckCheck" },
+  rejected: { color: "text-red-500", bg: "bg-red-100 dark:bg-red-900/30", label: "Rejected", icon: "XCircle" },
 };
 
 export const TRACE_NODE_COLORS = {
