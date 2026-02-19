@@ -10,6 +10,12 @@ from app.schemas.auth import (
     RegisterResponse,
     TokenResponse,
 )
+from app.schemas.batch import (
+    BatchClassifyRequest,
+    BatchJobResponse,
+    BatchProcessRequest,
+    BatchStatusResponse,
+)
 from app.schemas.calendar import (
     AvailabilityRequest,
     AvailabilityResponse,
@@ -48,6 +54,30 @@ from app.schemas.metrics import (
     ToolMetricEntry,
     ToolMetrics,
 )
+from app.schemas.notification import (
+    BatchCompletePayload,
+    BatchProgressPayload,
+    DraftApprovedPayload,
+    DraftReadyPayload,
+    DraftRejectedPayload,
+    EmailClassifiedPayload,
+    EmailReceivedPayload,
+    EmailSentPayload,
+    NotificationEvent,
+    WebSocketAuthMessage,
+    WebSocketConnectedMessage,
+)
+from app.schemas.settings import (
+    UserPreferencesResponse,
+    UserPreferencesUpdateRequest,
+)
+from app.schemas.template import (
+    TemplateCreateRequest,
+    TemplateRenderRequest,
+    TemplateRenderResponse,
+    TemplateResponse,
+    TemplateUpdateRequest,
+)
 from app.schemas.trace import (
     StepDetail,
     ToolExecutionDetail,
@@ -58,6 +88,11 @@ from app.schemas.trace import (
 )
 
 __all__ = [
+    # batch
+    "BatchClassifyRequest",
+    "BatchProcessRequest",
+    "BatchJobResponse",
+    "BatchStatusResponse",
     # auth
     "RegisterRequest",
     "RegisterResponse",
@@ -106,4 +141,25 @@ __all__ = [
     # crm
     "ContactResponse",
     "ContactUpdateRequest",
+    # settings
+    "UserPreferencesResponse",
+    "UserPreferencesUpdateRequest",
+    # templates
+    "TemplateResponse",
+    "TemplateCreateRequest",
+    "TemplateUpdateRequest",
+    "TemplateRenderRequest",
+    "TemplateRenderResponse",
+    # notification
+    "NotificationEvent",
+    "WebSocketAuthMessage",
+    "WebSocketConnectedMessage",
+    "EmailReceivedPayload",
+    "EmailClassifiedPayload",
+    "DraftReadyPayload",
+    "DraftApprovedPayload",
+    "DraftRejectedPayload",
+    "EmailSentPayload",
+    "BatchProgressPayload",
+    "BatchCompletePayload",
 ]

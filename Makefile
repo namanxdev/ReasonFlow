@@ -1,4 +1,4 @@
-.PHONY: dev backend frontend install clean
+.PHONY: dev backend frontend install clean docker-up docker-down docker-logs docker-migrate
 
 # Paths
 VENV_PYTHON := backend/venv/Scripts/python
@@ -33,3 +33,20 @@ clean:
 	-taskkill //F //IM uvicorn.exe 2>/dev/null || true
 	-taskkill //F //IM node.exe 2>/dev/null || true
 	@echo "Done."
+
+# ─── Docker targets ───────────────────────────────────────────────────────────
+docker-up:
+	@echo "Starting Docker services..."
+	docker compose up --build -d
+
+docker-down:
+	@echo "Stopping Docker services..."
+	docker compose down
+
+docker-logs:
+	@echo "Following Docker logs (Ctrl+C to exit)..."
+	docker compose logs -f
+
+docker-migrate:
+	@echo "Running database migrations..."
+	docker compose exec backend alembic upgrade head

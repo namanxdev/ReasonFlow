@@ -1,0 +1,54 @@
+name: Test
+on: [push, pull_request]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install ruff
+      - run: cd backend && ruff check .
+  
+  type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: cd backend && pip install -e ".[dev]" && mypy app
+  
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: reasonflow
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports: ['5432:5432']
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports: ['6379:6379']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: cd backend && pip install -e ".[dev]"
+      - run: cd backend && pytest -v --cov=app --cov-report=xml
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/reasonflow
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET_KEY: test-key
+          GEMINI_API_KEY: test-key

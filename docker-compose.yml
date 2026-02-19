@@ -1,0 +1,91 @@
+# ReasonFlow Docker Compose Configuration
+# This file defines the multi-service setup for local development
+
+version: "3.8"
+
+services:
+  # PostgreSQL database with pgvector extension
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: reasonflow-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: reasonflow
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d reasonflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - reasonflow-network
+
+  # Redis cache
+  redis:
+    image: redis:7-alpine
+    container_name: reasonflow-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - reasonflow-network
+
+  # FastAPI backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: reasonflow-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Database connection using Docker service name
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/reasonflow
+      # Redis connection using Docker service name
+      REDIS_URL: redis://redis:6379/0
+      # Load additional env vars from .env file
+      - GEMINI_API_KEY
+      - GMAIL_CLIENT_ID
+      - GMAIL_CLIENT_SECRET
+      - GMAIL_REDIRECT_URI
+      - JWT_SECRET_KEY
+      - JWT_ALGORITHM
+      - JWT_EXPIRATION_MINUTES
+      - CORS_ORIGINS
+      - APP_ENV
+      - APP_DEBUG
+    env_file:
+      - ./backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/app:/app/app:ro
+    networks:
+      - reasonflow-network
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    name: reasonflow-pgdata
+  redisdata:
+    name: reasonflow-redisdata
+
+networks:
+  reasonflow-network:
+    name: reasonflow-network
+    driver: bridge

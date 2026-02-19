@@ -58,5 +58,33 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.APP_ENV == "production"
 
+    def validate_production(self) -> None:
+        """Validate required configuration for production environment.
+
+        Raises:
+            ValueError: If any required production configuration is missing or invalid.
+        """
+        errors = []
+
+        # Check JWT_SECRET_KEY
+        if not self.JWT_SECRET_KEY or self.JWT_SECRET_KEY == "change-me-in-production":
+            errors.append(
+                "JWT_SECRET_KEY must be set to a secure value in production "
+                "(not the default 'change-me-in-production')"
+            )
+
+        # Check GEMINI_API_KEY
+        if not self.GEMINI_API_KEY or not self.GEMINI_API_KEY.strip():
+            errors.append("GEMINI_API_KEY must be configured in production")
+
+        # Check DATABASE_URL
+        if not self.DATABASE_URL or not self.DATABASE_URL.strip():
+            errors.append("DATABASE_URL must be configured in production")
+
+        if errors:
+            msg = "Production configuration errors:\n"
+            msg += "\n".join(f"  - {e}" for e in errors)
+            raise ValueError(msg)
+
 
 settings = Settings()

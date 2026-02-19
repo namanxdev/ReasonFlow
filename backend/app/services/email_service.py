@@ -13,6 +13,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.events import EventType, publish_event
 from app.core.security import decrypt_oauth_token
 from app.integrations.gmail.client import GmailClient
 from app.llm.client import get_gemini_client
@@ -205,6 +206,17 @@ async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
         db.add(email)
         created += 1
 
+        # Publish event for new email
+        await publish_event(
+            user_id=user.id,
+            event_type=EventType.EMAIL_RECEIVED,
+            data={
+                "email_id": str(email.id),
+                "subject": email.subject,
+                "sender": email.sender,
+            },
+        )
+
     await db.flush()
 
     # Auto-populate CRM contacts from unique senders
@@ -279,6 +291,17 @@ async def classify_unclassified_emails(db: AsyncSession, user_id: uuid.UUID) -> 
                 email.classification = EmailClassification.OTHER
             email.confidence = max(0.0, min(1.0, intent_result.confidence))
             classified += 1
+
+            # Publish event for classification
+            await publish_event(
+                user_id=user_id,
+                event_type=EventType.EMAIL_CLASSIFIED,
+                data={
+                    "email_id": str(email.id),
+                    "classification": email.classification.value,
+                    "confidence": email.confidence,
+                },
+            )
         except Exception as exc:
             logger.warning(
                 "Classification failed for email=%s: %s", email.id, exc

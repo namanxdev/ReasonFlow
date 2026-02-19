@@ -1,5 +1,6 @@
 """Business logic services package."""
 
+from app.services import batch_service, health_service, template_service
 from app.services.auth_service import (
     handle_gmail_callback,
     login,
@@ -23,12 +24,18 @@ from app.services.metrics_service import (
     get_latency_metrics,
     get_tool_metrics,
 )
+from app.services.settings_service import (
+    get_preferences,
+    update_preferences,
+)
 from app.services.trace_service import (
     get_trace_detail,
     list_traces,
 )
 
 __all__ = [
+    # batch
+    "batch_service",
     # auth
     "register",
     "login",
@@ -51,4 +58,11 @@ __all__ = [
     # trace
     "list_traces",
     "get_trace_detail",
+    # settings
+    "get_preferences",
+    "update_preferences",
+    # health
+    "health_service",
+    # templates
+    "template_service",
 ]

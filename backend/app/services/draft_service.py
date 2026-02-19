@@ -9,6 +9,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.events import EventType, publish_event
 from app.core.security import decrypt_oauth_token
 from app.integrations.gmail.client import GmailClient
 from app.models.email import Email, EmailStatus
@@ -92,6 +93,24 @@ async def approve_draft(
     email.status = EmailStatus.SENT
     await db.flush()
 
+    # Publish events for draft approval and email sent
+    await publish_event(
+        user_id=user.id,
+        event_type=EventType.DRAFT_APPROVED,
+        data={
+            "draft_id": str(email.id),
+            "email_id": str(email_id),
+        },
+    )
+    await publish_event(
+        user_id=user.id,
+        event_type=EventType.EMAIL_SENT,
+        data={
+            "email_id": str(email_id),
+            "draft_id": str(email.id),
+        },
+    )
+
     logger.info("Draft approved and sent: email=%s user=%s", email_id, user.id)
     return {"status": "sent", "email_id": str(email_id)}
 
@@ -114,6 +133,17 @@ async def reject_draft(
 
     email.status = EmailStatus.REJECTED
     await db.flush()
+
+    # Publish event for draft rejection
+    await publish_event(
+        user_id=user_id,
+        event_type=EventType.DRAFT_REJECTED,
+        data={
+            "draft_id": str(email_id),
+            "email_id": str(email_id),
+            "reason": None,
+        },
+    )
 
     logger.info("Draft rejected: email=%s user=%s", email_id, user_id)
     return {"status": "rejected", "email_id": str(email_id)}

@@ -21,6 +21,12 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     oauth_refresh_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
-    emails: Mapped[list["Email"]] = relationship(  # noqa: F821
+    emails: Mapped[list[Email]] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan"
+    )
+    email_templates: Mapped[list[EmailTemplate]] = relationship(  # noqa: F821
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    preferences: Mapped[UserPreferences] = relationship(  # noqa: F821
+        back_populates="user", cascade="all, delete-orphan", uselist=False
     )

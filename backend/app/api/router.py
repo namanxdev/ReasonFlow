@@ -2,7 +2,19 @@
 
 from fastapi import APIRouter
 
-from app.api.routes import auth, calendar, crm, drafts, emails, metrics, traces
+from app.api.routes import (
+    auth,
+    batch,
+    calendar,
+    crm,
+    drafts,
+    emails,
+    metrics,
+    notifications,
+    settings,
+    templates,
+    traces,
+)
 
 api_router = APIRouter()
 
@@ -19,6 +31,9 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 # Core email management
 api_router.include_router(emails.router, prefix="/emails", tags=["emails"])
 
+# Batch email operations
+api_router.include_router(batch.router, prefix="/emails/batch", tags=["batch"])
+
 # Draft review workflow
 api_router.include_router(drafts.router, prefix="/drafts", tags=["drafts"])
 
@@ -33,3 +48,12 @@ api_router.include_router(calendar.router, prefix="/calendar", tags=["calendar"]
 
 # CRM contacts
 api_router.include_router(crm.router, prefix="/crm", tags=["crm"])
+
+# Email templates
+api_router.include_router(templates.router, prefix="/templates", tags=["templates"])
+
+# Real-time notifications (WebSocket)
+api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
+
+# Settings/Preferences
+api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
