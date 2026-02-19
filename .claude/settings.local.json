@@ -10,7 +10,8 @@
       "Bash(./venv/Scripts/pytest tests/ -x -q)",
       "Bash(./venv/Scripts/pytest tests/ -x -q --ignore=tests/integrations/test_gmail_client.py)",
       "Bash(./venv/Scripts/pytest:*)",
-      "Bash(./venv/Scripts/ruff check app/agent/graph.py app/services/email_service.py)"
+      "Bash(./venv/Scripts/ruff check app/agent/graph.py app/services/email_service.py)",
+      "Bash(python -c:*)"
     ]
   }
 }

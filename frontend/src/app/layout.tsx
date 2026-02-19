@@ -7,8 +7,8 @@ import { Toaster } from "@/components/ui/sonner";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "ReasonFlow",
-  description: "AI-powered email agent",
+  title: "ReasonFlow — Autonomous Inbox AI Agent",
+  description: "Stop writing emails. Start approving them. AI-powered email management with human-in-the-loop approval workflows.",
 };
 
 export default function RootLayout({

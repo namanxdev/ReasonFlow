@@ -72,6 +72,9 @@
   * {
     @apply border-border;
   }
+  html {
+    scroll-behavior: smooth;
+  }
   body {
     @apply bg-background text-foreground;
   }
@@ -194,4 +197,38 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Dot pattern background - Gumloop style */
+.bg-dot-pattern {
+  background-image: radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Aurora gradient background - Sarvam style */
+.bg-aurora {
+  background: 
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(120, 119, 198, 0.3), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 60%, rgba(255, 119, 198, 0.15), transparent),
+    radial-gradient(ellipse 50% 30% at 20% 80%, rgba(99, 102, 241, 0.15), transparent);
+}
+
+/* Grid pattern */
+.bg-grid {
+  background-image: 
+    linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Mesh gradient */
+.bg-mesh {
+  background-color: #ffffff;
+  background-image: 
+    radial-gradient(at 40% 20%, hsla(28,100%,74%,0.1) 0px, transparent 50%),
+    radial-gradient(at 80% 0%, hsla(189,100%,56%,0.1) 0px, transparent 50%),
+    radial-gradient(at 0% 50%, hsla(340,100%,76%,0.1) 0px, transparent 50%),
+    radial-gradient(at 80% 50%, hsla(266,100%,76%,0.1) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, hsla(22,100%,77%,0.1) 0px, transparent 50%),
+    radial-gradient(at 80% 100%, hsla(242,100%,70%,0.1) 0px, transparent 50%);
 }

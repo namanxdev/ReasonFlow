@@ -150,3 +150,9 @@ ehthumbs.db
 Desktop.ini
 
 Bugs.txt
+Images/
+
+# Node modules (if installed at root)
+node_modules/
+package-lock.json
+package.json
