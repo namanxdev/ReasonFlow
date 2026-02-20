@@ -85,10 +85,9 @@ export interface Contact {
 
 export interface TraceRun {
   trace_id: string;
-  email_id: string;
   email_subject: string;
   classification: EmailClassification;
-  total_time_ms: number;
+  total_latency_ms: number;
   step_count: number;
   status: "completed" | "failed" | "in_progress";
   created_at: string;
@@ -128,8 +127,8 @@ export interface LatencyMetrics {
 export interface ToolAccuracy {
   tool_name: string;
   total_calls: number;
-  success_count: number;
-  failure_count: number;
+  successful_calls: number;
+  failed_calls: number;
   success_rate: number;
 }
 

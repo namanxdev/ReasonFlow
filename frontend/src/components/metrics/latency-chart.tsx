@@ -95,7 +95,7 @@ export function LatencyChart({ dateFrom, dateTo }: LatencyChartProps) {
               tickFormatter={(value) => `${value}ms`}
             />
             <Tooltip
-              formatter={(value: number) => [`${value.toFixed(1)}ms`]}
+              formatter={(value) => [`${typeof value === 'number' ? value.toFixed(1) : value}ms`]}
               contentStyle={{
                 backgroundColor: "hsl(var(--card))",
                 border: "1px solid hsl(var(--border))",

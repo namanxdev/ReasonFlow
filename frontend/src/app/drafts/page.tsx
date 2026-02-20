@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, Suspense } from "react";
+import { motion } from "framer-motion";
 import { useSearchParams, useRouter } from "next/navigation";
-import { AppShell } from "@/components/layout/app-shell";
+import { AppShellTopNav } from "@/components/layout/app-shell-top-nav";
 import { OriginalEmail } from "@/components/draft-review/original-email";
 import { DraftEditor } from "@/components/draft-review/draft-editor";
 import { ConfidenceIndicator } from "@/components/draft-review/confidence-indicator";
@@ -14,10 +15,11 @@ import {
   useApproveDraft,
 } from "@/hooks/use-drafts";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Loader2, Mail, AlertCircle } from "lucide-react";
+import { Loader2, Mail, AlertCircle, FileText, Edit3, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import type { Email } from "@/types";
 import { cn } from "@/lib/utils";
+import { PageHeader, SectionCard, StaggerContainer, StaggerItem } from "@/components/layout/dashboard-shell";
 
 function getRelativeTime(dateString: string): string {
   const now = new Date();
@@ -69,15 +71,15 @@ function DraftListItem({
     <div
       onClick={onClick}
       className={cn(
-        "p-4 border-b cursor-pointer transition-colors hover:bg-accent/50",
-        isSelected && "bg-accent border-l-4 border-l-primary"
+        "p-4 border-b cursor-pointer transition-all hover:bg-blue-50/50",
+        isSelected && "bg-blue-50/80 border-l-4 border-l-blue-500"
       )}
     >
       <div className="space-y-2">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <h3 className="font-medium truncate">{email.subject}</h3>
-            <p className="text-sm text-muted-foreground truncate">
+            <h3 className="font-medium truncate text-sm">{email.subject}</h3>
+            <p className="text-xs text-muted-foreground truncate">
               {email.sender}
             </p>
           </div>
@@ -164,53 +166,77 @@ function DraftsContent() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[50vh]">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+        <div className="relative">
+          <div className="absolute inset-0 bg-pink-500/20 blur-xl rounded-full" />
+          <Loader2 className="relative size-8 animate-spin text-pink-500" />
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-[50vh]">
-        <div className="text-center space-y-2">
-          <AlertCircle className="size-12 mx-auto text-destructive" />
-          <h3 className="text-lg font-semibold">Error Loading Drafts</h3>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-center h-[50vh]"
+      >
+        <div className="text-center space-y-3">
+          <div className="w-16 h-16 rounded-2xl bg-red-100 flex items-center justify-center mx-auto">
+            <AlertCircle className="size-8 text-red-500" />
+          </div>
+          <h3 className="text-lg font-medium">Error Loading Drafts</h3>
           <p className="text-sm text-muted-foreground">
             {error instanceof Error ? error.message : "Unknown error"}
           </p>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   if (!drafts || drafts.length === 0) {
     return (
-      <div className="flex items-center justify-center h-[50vh]">
-        <div className="text-center space-y-2">
-          <Mail className="size-12 mx-auto text-muted-foreground" />
-          <h3 className="text-lg font-semibold">No Drafts to Review</h3>
-          <p className="text-sm text-muted-foreground">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-center h-[50vh]"
+      >
+        <div className="text-center space-y-3">
+          <div className="w-16 h-16 rounded-2xl bg-pink-100 flex items-center justify-center mx-auto">
+            <Mail className="size-8 text-pink-500" />
+          </div>
+          <h3 className="text-lg font-medium">No Drafts to Review</h3>
+          <p className="text-sm text-muted-foreground max-w-sm">
             All drafts have been reviewed or there are no pending drafts.
           </p>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   if (!emailId || !selectedEmail) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Draft Review</h1>
-          <p className="text-muted-foreground">
-            Review and approve AI-generated email drafts
-          </p>
-        </div>
-        <Card>
-          <CardHeader>
-            <CardTitle>Pending Drafts ({drafts.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
+      <StaggerContainer className="space-y-6 max-w-5xl mx-auto">
+        <StaggerItem>
+          <PageHeader
+            icon={<FileText className="w-6 h-6 text-pink-600" />}
+            iconColor="bg-pink-500/10"
+            title="Draft Review"
+            subtitle="Review and approve AI-generated email drafts"
+          />
+        </StaggerItem>
+
+        <StaggerItem>
+          <SectionCard className="overflow-hidden">
+            <div className="px-6 py-4 border-b bg-gradient-to-r from-pink-50/50 to-violet-50/50">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-pink-500" />
+                <span className="text-sm font-medium">Pending Drafts</span>
+                <span className="px-2 py-0.5 rounded-full bg-pink-100 text-pink-600 text-xs font-medium">
+                  {drafts.length}
+                </span>
+              </div>
+            </div>
             <div className="divide-y">
               {drafts.map((draft) => (
                 <DraftListItem
@@ -221,63 +247,70 @@ function DraftsContent() {
                 />
               ))}
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </SectionCard>
+        </StaggerItem>
+      </StaggerContainer>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Draft Review</h1>
-        <p className="text-muted-foreground">
-          Review and approve AI-generated email draft
-        </p>
-      </div>
+    <StaggerContainer className="space-y-6 max-w-6xl mx-auto">
+      <StaggerItem>
+        <PageHeader
+          icon={<Edit3 className="w-6 h-6 text-pink-600" />}
+          iconColor="bg-pink-500/10"
+          title="Review Draft"
+          subtitle="Edit and approve the AI-generated response"
+        />
+      </StaggerItem>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-6">
-          <OriginalEmail email={selectedEmail} />
+      <StaggerItem>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-6">
+            <OriginalEmail email={selectedEmail} />
+          </div>
+
+          <div className="space-y-6">
+            <DraftEditor
+              draftContent={
+                isEditing ? editedContent : selectedEmail.draft_response || ""
+              }
+              isEditing={isEditing}
+              onChange={setEditedContent}
+            />
+
+            {selectedEmail.confidence !== null && (
+              <ConfidenceIndicator confidence={selectedEmail.confidence} />
+            )}
+
+            <ApprovalButtons
+              emailId={selectedEmail.id}
+              onAction={isEditing ? handleSaveAndApprove : handleAction}
+              isEditing={isEditing}
+              onToggleEdit={handleToggleEdit}
+            />
+          </div>
         </div>
-
-        <div className="space-y-6">
-          <DraftEditor
-            draftContent={
-              isEditing ? editedContent : selectedEmail.draft_response || ""
-            }
-            isEditing={isEditing}
-            onChange={setEditedContent}
-          />
-
-          {selectedEmail.confidence !== null && (
-            <ConfidenceIndicator confidence={selectedEmail.confidence} />
-          )}
-
-          <ApprovalButtons
-            emailId={selectedEmail.id}
-            onAction={isEditing ? handleSaveAndApprove : handleAction}
-            isEditing={isEditing}
-            onToggleEdit={handleToggleEdit}
-          />
-        </div>
-      </div>
-    </div>
+      </StaggerItem>
+    </StaggerContainer>
   );
 }
 
 export default function DraftsPage() {
   return (
-    <AppShell>
+    <AppShellTopNav>
       <Suspense
         fallback={
           <div className="flex items-center justify-center h-[50vh]">
-            <Loader2 className="size-8 animate-spin text-muted-foreground" />
+            <div className="relative">
+              <div className="absolute inset-0 bg-pink-500/20 blur-xl rounded-full" />
+              <Loader2 className="relative size-8 animate-spin text-pink-500" />
+            </div>
           </div>
         }
       >
         <DraftsContent />
       </Suspense>
-    </AppShell>
+    </AppShellTopNav>
   );
 }

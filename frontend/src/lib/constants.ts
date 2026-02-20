@@ -75,7 +75,7 @@ export const PIPELINE_STEPS = [
   "classify",
   "retrieve",
   "decide",
-  "execute_tools",
+  "execute",
   "generate",
   "review",
   "dispatch",

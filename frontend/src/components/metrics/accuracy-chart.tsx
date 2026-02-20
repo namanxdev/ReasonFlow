@@ -65,8 +65,8 @@ export function AccuracyChart() {
 
   const chartData = data.map((item) => ({
     name: formatToolName(item.tool_name),
-    Success: item.success_count,
-    Failure: item.failure_count,
+    Success: item.successful_calls,
+    Failure: item.failed_calls,
     successRate: item.success_rate,
   }));
 

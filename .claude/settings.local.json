@@ -13,7 +13,13 @@
       "Bash(./venv/Scripts/ruff check app/agent/graph.py app/services/email_service.py)",
       "Bash(python -c:*)",
       "Bash(grep:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "WebFetch(domain:www.gumloop.com)",
+      "WebFetch(domain:agent.ai)",
+      "WebFetch(domain:sarvam.ai)",
+      "WebFetch(domain:relay.app)",
+      "WebFetch(domain:stack-ai.com)",
+      "Bash(xargs basename:*)"
     ]
   }
 }

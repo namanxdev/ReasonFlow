@@ -1,14 +1,22 @@
 "use client";
 
-import { PIPELINE_STEPS, TRACE_NODE_COLORS } from "@/lib/constants";
+import { motion } from "framer-motion";
+import { PIPELINE_STEPS } from "@/lib/constants";
 import type { AgentLog } from "@/types";
 import { cn } from "@/lib/utils";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Check, X, Minus, User } from "lucide-react";
 
 interface TraceGraphProps {
   steps: AgentLog[];
   onSelectStep: (step: AgentLog) => void;
   selectedStepId?: string;
+}
+
+function normalizeStepName(stepName: string): string {
+  if (stepName === "execute_tools") {
+    return "execute";
+  }
+  return stepName;
 }
 
 function formatStepName(stepName: string): string {
@@ -19,14 +27,12 @@ function formatStepName(stepName: string): string {
 }
 
 function formatLatency(ms: number): string {
-  return `${ms}ms`;
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
 }
 
-function getStepStatus(
-  stepName: string,
-  steps: AgentLog[]
-): "completed" | "failed" | "skipped" | "human_queue" {
-  const step = steps.find((s) => s.step_name === stepName);
+function getStepStatus(stepName: string, steps: AgentLog[]): "completed" | "failed" | "skipped" | "human_queue" {
+  const step = steps.find((s) => normalizeStepName(s.step_name) === stepName);
 
   if (!step) {
     return "skipped";
@@ -43,76 +49,120 @@ function getStepStatus(
   return "completed";
 }
 
-function getNodeColors(status: "completed" | "failed" | "skipped" | "human_queue") {
+function getStatusConfig(status: "completed" | "failed" | "skipped" | "human_queue") {
   switch (status) {
     case "completed":
       return {
         border: "border-green-500",
-        bg: "bg-green-50 dark:bg-green-950/30",
-        text: "text-green-700 dark:text-green-300",
+        bg: "bg-gradient-to-br from-green-50 to-emerald-50",
+        text: "text-green-700",
+        icon: Check,
+        iconBg: "bg-green-500",
+        shadow: "shadow-green-500/20",
       };
     case "failed":
       return {
         border: "border-red-500",
-        bg: "bg-red-50 dark:bg-red-950/30",
-        text: "text-red-700 dark:text-red-300",
+        bg: "bg-gradient-to-br from-red-50 to-rose-50",
+        text: "text-red-700",
+        icon: X,
+        iconBg: "bg-red-500",
+        shadow: "shadow-red-500/20",
       };
     case "skipped":
       return {
-        border: "border-amber-500",
-        bg: "bg-amber-50 dark:bg-amber-950/30",
-        text: "text-amber-700 dark:text-amber-300",
+        border: "border-slate-300",
+        bg: "bg-gradient-to-br from-slate-50 to-gray-50",
+        text: "text-slate-500",
+        icon: Minus,
+        iconBg: "bg-slate-400",
+        shadow: "shadow-slate-500/10",
       };
     case "human_queue":
       return {
         border: "border-blue-500",
-        bg: "bg-blue-50 dark:bg-blue-950/30",
-        text: "text-blue-700 dark:text-blue-300",
+        bg: "bg-gradient-to-br from-blue-50 to-indigo-50",
+        text: "text-blue-700",
+        icon: User,
+        iconBg: "bg-blue-500",
+        shadow: "shadow-blue-500/20",
       };
   }
 }
 
 export function TraceGraph({ steps, onSelectStep, selectedStepId }: TraceGraphProps) {
   return (
-    <div className="w-full overflow-x-auto">
-      <div className="inline-flex items-center gap-2 min-w-full p-4">
+    <div className="w-full overflow-x-auto pb-2">
+      <div className="inline-flex items-center gap-3 min-w-full p-2">
         {PIPELINE_STEPS.map((stepName, index) => {
-          const step = steps.find((s) => s.step_name === stepName);
+          const step = steps.find((s) => normalizeStepName(s.step_name) === stepName);
           const status = getStepStatus(stepName, steps);
-          const colors = getNodeColors(status);
+          const config = getStatusConfig(status);
+          const StatusIcon = config.icon;
           const isSelected = step && step.id === selectedStepId;
+          const hasStep = !!step;
 
           return (
-            <div key={stepName} className="flex items-center gap-2">
-              <button
+            <div key={stepName} className="flex items-center gap-3">
+              <motion.button
+                whileHover={hasStep ? { scale: 1.02 } : {}}
+                whileTap={hasStep ? { scale: 0.98 } : {}}
                 onClick={() => step && onSelectStep(step)}
-                disabled={!step}
+                disabled={!hasStep}
                 className={cn(
-                  "rounded-lg border-2 px-4 py-3 min-w-[140px] transition-all",
-                  colors.border,
-                  colors.bg,
-                  colors.text,
-                  step && "hover:shadow-md cursor-pointer",
-                  !step && "opacity-50 cursor-not-allowed",
-                  isSelected && "ring-4 ring-ring/50"
+                  "relative rounded-2xl border-2 px-5 py-4 min-w-[160px] transition-all duration-200",
+                  config.border,
+                  config.bg,
+                  config.text,
+                  hasStep && "hover:shadow-lg cursor-pointer",
+                  !hasStep && "opacity-60 cursor-not-allowed",
+                  isSelected && "ring-4 ring-violet-500/30 shadow-lg",
+                  "shadow-sm"
                 )}
               >
-                <div className="space-y-1">
-                  <div className="font-semibold text-sm">
+                {/* Status Icon */}
+                <div className={cn(
+                  "absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center shadow-lg",
+                  config.iconBg,
+                  config.shadow
+                )}>
+                  <StatusIcon className="size-4 text-white" />
+                </div>
+
+                <div className="space-y-2">
+                  {/* Step Name */}
+                  <div className="font-semibold text-sm pr-4">
                     {formatStepName(stepName)}
                   </div>
+
+                  {/* Latency */}
                   {step ? (
-                    <div className="text-xs opacity-75">
+                    <div className="flex items-center gap-1.5 text-xs opacity-80">
+                      <span className="w-1.5 h-1.5 rounded-full bg-current" />
                       {formatLatency(step.latency_ms)}
                     </div>
                   ) : (
-                    <div className="text-xs opacity-75">Skipped</div>
+                    <div className="flex items-center gap-1.5 text-xs opacity-60">
+                      <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                      Skipped
+                    </div>
                   )}
                 </div>
-              </button>
 
+                {/* Selected indicator */}
+                {isSelected && (
+                  <motion.div
+                    layoutId="selectedStep"
+                    className="absolute inset-0 rounded-2xl border-2 border-violet-500 pointer-events-none"
+                  />
+                )}
+              </motion.button>
+
+              {/* Arrow connector */}
               {index < PIPELINE_STEPS.length - 1 && (
-                <ChevronRight className="size-5 text-muted-foreground flex-shrink-0" />
+                <div className="flex items-center">
+                  <ChevronRight className="size-5 text-slate-300" />
+                </div>
               )}
             </div>
           );

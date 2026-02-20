@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { AppShell } from "@/components/layout/app-shell";
+import { motion } from "framer-motion";
+import { AppShellTopNav } from "@/components/layout/app-shell-top-nav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { PageHeader, SectionCard, StaggerContainer, StaggerItem } from "@/components/layout/dashboard-shell";
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-US", {
@@ -40,8 +42,10 @@ function formatDate(iso: string) {
 
 function SlotCard({ slot }: { slot: TimeSlot }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border p-3 bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800">
-      <Clock className="size-4 text-green-600 dark:text-green-400 shrink-0" />
+    <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50/50 p-3">
+      <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0">
+        <Clock className="size-4 text-green-600" />
+      </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium">
           {formatTime(slot.start)} – {formatTime(slot.end)}
@@ -59,7 +63,6 @@ export default function CalendarPage() {
   const [dateStart, setDateStart] = useState(today);
   const [dateEnd, setDateEnd] = useState(today);
 
-  // Create event form
   const [eventTitle, setEventTitle] = useState("");
   const [eventStart, setEventStart] = useState("");
   const [eventEnd, setEventEnd] = useState("");
@@ -72,7 +75,6 @@ export default function CalendarPage() {
   const { data: availability, isLoading, error } = useAvailability(startISO, endISO);
   const createEvent = useCreateEvent();
 
-  // Fetch 7 days of upcoming events (use stable date strings to avoid re-render loops)
   const eventsStartISO = `${today}T00:00:00`;
   const eventsEndDate = new Date(today);
   eventsEndDate.setDate(eventsEndDate.getDate() + 7);
@@ -118,249 +120,262 @@ export default function CalendarPage() {
   };
 
   return (
-    <AppShell>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Calendar</h1>
-          <p className="text-muted-foreground mt-1">
-            Check availability and create calendar events
-          </p>
-        </div>
+    <AppShellTopNav>
+      <StaggerContainer className="space-y-6">
+          {/* Header */}
+          <StaggerItem>
+            <PageHeader
+              icon={<CalendarIcon className="w-6 h-6 text-amber-600" />}
+              iconColor="bg-amber-500/10"
+              title="Calendar"
+              subtitle="Check availability and create calendar events"
+            />
+          </StaggerItem>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Availability Check */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarIcon className="size-5" />
-                Check Availability
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="avail-start">From</Label>
-                  <Input
-                    id="avail-start"
-                    type="date"
-                    value={dateStart}
-                    onChange={(e) => setDateStart(e.target.value)}
-                    className="mt-1.5"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="avail-end">To</Label>
-                  <Input
-                    id="avail-end"
-                    type="date"
-                    value={dateEnd}
-                    onChange={(e) => setDateEnd(e.target.value)}
-                    className="mt-1.5"
-                  />
-                </div>
-              </div>
+          {/* Main Grid */}
+          <StaggerItem>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Availability Check */}
+              <SectionCard>
+                <div className="p-5">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Check Availability</h3>
+                      <p className="text-xs text-muted-foreground">Find free time slots</p>
+                    </div>
+                  </div>
 
-              {isLoading && (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="size-6 animate-spin text-muted-foreground" />
-                </div>
-              )}
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <Label htmlFor="avail-start" className="text-xs text-muted-foreground">From</Label>
+                      <Input
+                        id="avail-start"
+                        type="date"
+                        value={dateStart}
+                        onChange={(e) => setDateStart(e.target.value)}
+                        className="mt-1.5 h-11 bg-white/70 border-white/50"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="avail-end" className="text-xs text-muted-foreground">To</Label>
+                      <Input
+                        id="avail-end"
+                        type="date"
+                        value={dateEnd}
+                        onChange={(e) => setDateEnd(e.target.value)}
+                        className="mt-1.5 h-11 bg-white/70 border-white/50"
+                      />
+                    </div>
+                  </div>
 
-              {error && (
-                <div className="flex items-center gap-2 rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
-                  <AlertCircle className="size-4 shrink-0" />
-                  {(() => {
-                    const axiosErr = error as any;
-                    const detail = axiosErr?.response?.data?.detail;
-                    if (detail) return detail;
-                    if (error instanceof Error) return error.message;
-                    return "Failed to check availability. Make sure Gmail is connected.";
-                  })()}
-                </div>
-              )}
-
-              {availability && !isLoading && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">
-                    Free slots on {formatDate(availability.checked_range_start)}
-                    {availability.checked_range_start !==
-                      availability.checked_range_end &&
-                      ` – ${formatDate(availability.checked_range_end)}`}
-                  </p>
-                  {availability.free_slots.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-4 text-center">
-                      No free slots found in this range.
-                    </p>
-                  ) : (
-                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                      {availability.free_slots.map((slot, i) => (
-                        <SlotCard key={i} slot={slot} />
-                      ))}
+                  {isLoading && (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="size-6 animate-spin text-muted-foreground" />
                     </div>
                   )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
 
-          {/* Create Event */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Plus className="size-5" />
-                Create Event
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleCreateEvent} className="space-y-4">
-                <div>
-                  <Label htmlFor="event-title">Title</Label>
-                  <Input
-                    id="event-title"
-                    placeholder="Meeting title"
-                    value={eventTitle}
-                    onChange={(e) => setEventTitle(e.target.value)}
-                    className="mt-1.5"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="event-start">Start</Label>
-                    <Input
-                      id="event-start"
-                      type="datetime-local"
-                      value={eventStart}
-                      onChange={(e) => setEventStart(e.target.value)}
-                      className="mt-1.5"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="event-end">End</Label>
-                    <Input
-                      id="event-end"
-                      type="datetime-local"
-                      value={eventEnd}
-                      onChange={(e) => setEventEnd(e.target.value)}
-                      className="mt-1.5"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="event-attendees">
-                    Attendees{" "}
-                    <span className="text-muted-foreground font-normal">
-                      (comma-separated)
-                    </span>
-                  </Label>
-                  <Input
-                    id="event-attendees"
-                    placeholder="alice@example.com, bob@example.com"
-                    value={eventAttendees}
-                    onChange={(e) => setEventAttendees(e.target.value)}
-                    className="mt-1.5"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="event-desc">Description</Label>
-                  <Input
-                    id="event-desc"
-                    placeholder="Optional description"
-                    value={eventDescription}
-                    onChange={(e) => setEventDescription(e.target.value)}
-                    className="mt-1.5"
-                  />
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={createEvent.isPending}
-                >
-                  {createEvent.isPending ? (
-                    <>
-                      <Loader2 className="animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="size-4" />
-                      Create Event
-                    </>
+                  {error && (
+                    <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-600">
+                      <AlertCircle className="size-4 shrink-0" />
+                      {(() => {
+                        const axiosErr = error as any;
+                        const detail = axiosErr?.response?.data?.detail;
+                        if (detail) return detail;
+                        if (error instanceof Error) return error.message;
+                        return "Failed to check availability.";
+                      })()}
+                    </div>
                   )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
 
-        {/* Upcoming Events */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CalendarIcon className="size-5" />
-              Upcoming Events
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {eventsLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="size-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : eventsError ? (
-              <div className="flex items-center gap-2 rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
-                <AlertCircle className="size-4 shrink-0" />
-                {(() => {
-                  const axiosErr = eventsError as any;
-                  const detail = axiosErr?.response?.data?.detail;
-                  if (detail) return detail;
-                  return "Failed to load events.";
-                })()}
-              </div>
-            ) : events && events.length > 0 ? (
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {events.map((event: CalendarEventItem) => (
-                  <div
-                    key={event.id}
-                    className="flex items-center gap-3 rounded-lg border p-3"
-                  >
-                    <CalendarIcon className="size-4 text-blue-500 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{event.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatTime(event.start)} – {formatTime(event.end)}
-                        {" · "}
-                        {formatDate(event.start)}
+                  {availability && !isLoading && (
+                    <div className="space-y-3">
+                      <p className="text-sm font-medium">
+                        Free slots on {formatDate(availability.checked_range_start)}
+                        {availability.checked_range_start !== availability.checked_range_end &&
+                          ` – ${formatDate(availability.checked_range_end)}`}
                       </p>
-                      {event.attendees.length > 0 && (
-                        <p className="text-xs text-muted-foreground truncate">
-                          {event.attendees.join(", ")}
+                      {availability.free_slots.length === 0 ? (
+                        <p className="text-sm text-muted-foreground py-4 text-center bg-muted/30 rounded-lg">
+                          No free slots found in this range.
                         </p>
+                      ) : (
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                          {availability.free_slots.map((slot, i) => (
+                            <SlotCard key={i} slot={slot} />
+                          ))}
+                        </div>
                       )}
                     </div>
-                    {event.html_link && (
-                      <a
-                        href={event.html_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-500 hover:underline shrink-0"
-                      >
-                        Open
-                      </a>
-                    )}
+                  )}
+                </div>
+              </SectionCard>
+
+              {/* Create Event */}
+              <SectionCard>
+                <div className="p-5">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                      <Plus className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Create Event</h3>
+                      <p className="text-xs text-muted-foreground">Schedule a new meeting</p>
+                    </div>
                   </div>
-                ))}
+
+                  <form onSubmit={handleCreateEvent} className="space-y-4">
+                    <div>
+                      <Label htmlFor="event-title" className="text-xs text-muted-foreground">Title</Label>
+                      <Input
+                        id="event-title"
+                        placeholder="Meeting title"
+                        value={eventTitle}
+                        onChange={(e) => setEventTitle(e.target.value)}
+                        className="mt-1.5 h-11 bg-white/70 border-white/50"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="event-start" className="text-xs text-muted-foreground">Start</Label>
+                        <Input
+                          id="event-start"
+                          type="datetime-local"
+                          value={eventStart}
+                          onChange={(e) => setEventStart(e.target.value)}
+                          className="mt-1.5 h-11 bg-white/70 border-white/50"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="event-end" className="text-xs text-muted-foreground">End</Label>
+                        <Input
+                          id="event-end"
+                          type="datetime-local"
+                          value={eventEnd}
+                          onChange={(e) => setEventEnd(e.target.value)}
+                          className="mt-1.5 h-11 bg-white/70 border-white/50"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="event-attendees" className="text-xs text-muted-foreground">
+                        Attendees <span className="text-muted-foreground">(comma-separated)</span>
+                      </Label>
+                      <Input
+                        id="event-attendees"
+                        placeholder="alice@example.com, bob@example.com"
+                        value={eventAttendees}
+                        onChange={(e) => setEventAttendees(e.target.value)}
+                        className="mt-1.5 h-11 bg-white/70 border-white/50"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="event-desc" className="text-xs text-muted-foreground">Description</Label>
+                      <Input
+                        id="event-desc"
+                        placeholder="Optional description"
+                        value={eventDescription}
+                        onChange={(e) => setEventDescription(e.target.value)}
+                        className="mt-1.5 h-11 bg-white/70 border-white/50"
+                      />
+                    </div>
+
+                    <Button
+                      type="submit"
+                      className="w-full h-11 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700"
+                      disabled={createEvent.isPending}
+                    >
+                      {createEvent.isPending ? (
+                        <>
+                          <Loader2 className="animate-spin mr-2" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="size-4 mr-2" />
+                          Create Event
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </div>
+              </SectionCard>
+            </div>
+          </StaggerItem>
+
+          {/* Upcoming Events */}
+          <StaggerItem>
+            <SectionCard>
+              <div className="p-5">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center">
+                    <CalendarIcon className="w-5 h-5 text-violet-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Upcoming Events</h3>
+                    <p className="text-xs text-muted-foreground">Next 7 days</p>
+                  </div>
+                </div>
+
+                {eventsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : eventsError ? (
+                  <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-600">
+                    <AlertCircle className="size-4 shrink-0" />
+                    Failed to load events.
+                  </div>
+                ) : events && events.length > 0 ? (
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                    {events.map((event: CalendarEventItem) => (
+                      <div
+                        key={event.id}
+                        className="flex items-center gap-3 rounded-xl border p-3 hover:bg-violet-50/50 transition-colors"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center flex-shrink-0">
+                          <CalendarIcon className="size-4 text-violet-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{event.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatTime(event.start)} – {formatTime(event.end)}
+                            {" · "}
+                            {formatDate(event.start)}
+                          </p>
+                          {event.attendees.length > 0 && (
+                            <p className="text-xs text-muted-foreground truncate">
+                              {event.attendees.join(", ")}
+                            </p>
+                          )}
+                        </div>
+                        {event.html_link && (
+                          <a
+                            href={event.html_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-violet-600 hover:underline shrink-0 font-medium"
+                          >
+                            Open
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground py-8 text-center bg-muted/20 rounded-xl">
+                    No upcoming events found.
+                  </p>
+                )}
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground py-4 text-center">
-                No upcoming events found.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </AppShell>
+            </SectionCard>
+          </StaggerItem>
+      </StaggerContainer>
+    </AppShellTopNav>
   );
 }

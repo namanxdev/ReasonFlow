@@ -3,11 +3,10 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Sidebar } from "./sidebar";
-import { Header } from "./header";
+import { TopNav } from "./top-nav";
 import { useSyncEmails } from "@/hooks/use-emails";
 
-interface AppShellProps {
+interface AppShellTopNavProps {
   children: React.ReactNode;
 }
 
@@ -23,7 +22,7 @@ function getUserEmailFromToken(): string | null {
   }
 }
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShellTopNav({ children }: AppShellTopNavProps) {
   const router = useRouter();
   const syncMutation = useSyncEmails();
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -57,19 +56,25 @@ export function AppShell({ children }: AppShellProps) {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar
+    <div className="min-h-screen bg-page">
+      {/* Background */}
+      <div className="fixed inset-0 bg-dot-pattern opacity-[0.03]" />
+      <div className="fixed inset-0 bg-aurora-pink opacity-30" />
+      
+      {/* Top Navigation */}
+      <TopNav
         onSync={handleSync}
         isSyncing={syncMutation.isPending}
         userEmail={userEmail || undefined}
         onLogout={handleLogout}
       />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-y-auto">
+
+      {/* Main Content */}
+      <main className="relative z-10 pt-24 pb-6 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
           {children}
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

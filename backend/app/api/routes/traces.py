@@ -32,11 +32,11 @@ async def list_traces(
     user: User = Depends(get_current_user),
 ) -> TraceListResponse:
     """Return a paginated list of trace summaries for the current user."""
-    rows = await trace_service.list_traces(db, user.id, limit=limit, offset=offset)
+    rows, total_count = await trace_service.list_traces(db, user.id, limit=limit, offset=offset)
     items = [TraceResponse(**row) for row in rows]
     return TraceListResponse(
         items=items,
-        total=len(items),
+        total=total_count,
         page=(offset // limit) + 1 if limit else 1,
         per_page=limit,
     )

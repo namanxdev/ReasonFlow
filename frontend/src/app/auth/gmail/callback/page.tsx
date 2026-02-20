@@ -1,25 +1,19 @@
 "use client";
 
+import { Suspense } from "react";
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Loader2, CheckCircle, XCircle, Workflow } from "lucide-react";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
+import { motion } from "framer-motion";
+import { Loader2, XCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import api from "@/lib/api";
 
 type CallbackStatus = "loading" | "success" | "error";
 
-export default function GmailCallbackPage() {
+function GmailCallbackContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = useState<CallbackStatus>("loading");
-  const [connectedEmail, setConnectedEmail] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
@@ -36,14 +30,18 @@ export default function GmailCallbackPage() {
     const exchangeCode = async () => {
       try {
         const response = await api.post("/auth/gmail/callback", { code });
-        setConnectedEmail(response.data.email || "");
-        setStatus("success");
 
         // If the server returned a JWT (unauthenticated Gmail login flow),
         // store it so the user is logged in.
         if (response.data.access_token) {
           localStorage.setItem("rf_access_token", response.data.access_token);
         }
+
+        // Auto-redirect to inbox on success
+        setStatus("success");
+        setTimeout(() => {
+          router.push("/inbox");
+        }, 800);
       } catch (err: any) {
         setStatus("error");
         setErrorMessage(
@@ -55,71 +53,113 @@ export default function GmailCallbackPage() {
     };
 
     exchangeCode();
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <Workflow className="size-8 text-primary" />
-            <CardTitle className="text-2xl">Gmail Connection</CardTitle>
-          </div>
-          <CardDescription>
-            {status === "loading" && "Connecting your Gmail account..."}
-            {status === "success" && "Gmail connected successfully!"}
-            {status === "error" && "Connection failed"}
-          </CardDescription>
-        </CardHeader>
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
+      {/* Background Layers - Matching landing page style */}
+      <div className="absolute inset-0 bg-mesh" />
+      <div className="absolute inset-0 bg-dot-pattern opacity-50" />
+      <div className="absolute inset-0 bg-aurora" />
 
-        <CardContent className="flex flex-col items-center gap-4">
-          {status === "loading" && (
-            <div className="flex flex-col items-center gap-3 py-6">
-              <Loader2 className="size-12 animate-spin text-primary" />
+      {/* Content */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3 }}
+        className="relative text-center px-4"
+      >
+        {status === "loading" && (
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative">
+              <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full" />
+              <div className="relative w-16 h-16 rounded-2xl bg-white/80 backdrop-blur-sm border border-border/50 shadow-xl flex items-center justify-center">
+                <Loader2 className="size-8 animate-spin text-primary" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <p className="text-lg font-medium">Connecting your account...</p>
               <p className="text-sm text-muted-foreground">
-                Exchanging authorization code with Google...
+                Exchanging authorization code with Google
               </p>
             </div>
-          )}
+          </div>
+        )}
 
-          {status === "success" && (
-            <div className="flex flex-col items-center gap-3 py-6">
-              <CheckCircle className="size-12 text-green-500" />
-              <div className="text-center space-y-1">
-                <p className="text-sm font-medium">
-                  Connected as {connectedEmail}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  You can now sync and process your emails.
-                </p>
+        {status === "success" && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center gap-4"
+          >
+            <div className="relative">
+              <div className="absolute inset-0 bg-green-500/20 blur-xl rounded-full" />
+              <div className="relative w-16 h-16 rounded-2xl bg-white/80 backdrop-blur-sm border border-green-500/30 shadow-xl flex items-center justify-center">
+                <Sparkles className="size-8 text-green-500" />
               </div>
-              <Button onClick={() => router.push("/inbox")} className="mt-2">
-                Go to Inbox
+            </div>
+            <div className="space-y-1">
+              <p className="text-lg font-medium">Successfully connected!</p>
+              <p className="text-sm text-muted-foreground">
+                Redirecting to your inbox...
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+        {status === "error" && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center gap-4 max-w-md"
+          >
+            <div className="relative">
+              <div className="absolute inset-0 bg-destructive/20 blur-xl rounded-full" />
+              <div className="relative w-16 h-16 rounded-2xl bg-white/80 backdrop-blur-sm border border-destructive/30 shadow-xl flex items-center justify-center">
+                <XCircle className="size-8 text-destructive" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <p className="text-lg font-medium">Connection failed</p>
+              <p className="text-sm text-muted-foreground">{errorMessage}</p>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <Button
+                variant="outline"
+                onClick={() => router.push("/login")}
+              >
+                Back to Login
               </Button>
+              <Button onClick={() => router.push("/inbox")}>Go to Inbox</Button>
             </div>
-          )}
-
-          {status === "error" && (
-            <div className="flex flex-col items-center gap-3 py-6">
-              <XCircle className="size-12 text-destructive" />
-              <div className="text-center space-y-1">
-                <p className="text-sm text-destructive">{errorMessage}</p>
-              </div>
-              <div className="flex gap-2 mt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => router.push("/login")}
-                >
-                  Back to Login
-                </Button>
-                <Button onClick={() => router.push("/inbox")}>
-                  Go to Inbox
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </motion.div>
+        )}
+      </motion.div>
     </div>
+  );
+}
+
+export default function GmailCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
+        <div className="absolute inset-0 bg-mesh" />
+        <div className="absolute inset-0 bg-dot-pattern opacity-50" />
+        <div className="absolute inset-0 bg-aurora" />
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full" />
+            <div className="relative w-16 h-16 rounded-2xl bg-white/80 backdrop-blur-sm border border-border/50 shadow-xl flex items-center justify-center">
+              <Loader2 className="size-8 animate-spin text-primary" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <p className="text-lg font-medium">Loading...</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <GmailCallbackContent />
+    </Suspense>
   );
 }

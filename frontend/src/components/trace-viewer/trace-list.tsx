@@ -166,7 +166,7 @@ export function TraceList({ traces, isLoading }: TraceListProps) {
                 </TableCell>
                 <TableCell>
                   <span className="text-sm text-muted-foreground">
-                    {formatTime(trace.total_time_ms)}
+                    {formatTime(trace.total_latency_ms)}
                   </span>
                 </TableCell>
                 <TableCell>

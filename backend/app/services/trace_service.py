@@ -22,7 +22,7 @@ async def list_traces(
     user_id: uuid.UUID,
     limit: int = 50,
     offset: int = 0,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], int]:
     """Return a paginated list of recent agent trace summaries for *user_id*.
 
     Each entry corresponds to one unique ``trace_id`` and aggregates the step
@@ -34,7 +34,7 @@ async def list_traces(
     )
     user_emails: list[Email] = list(email_result.scalars().all())
     if not user_emails:
-        return []
+        return [], 0
 
     email_map: dict[uuid.UUID, Email] = {e.id: e for e in user_emails}
     email_ids = list(email_map.keys())
@@ -55,6 +55,7 @@ async def list_traces(
             email = email_map.get(log.email_id)
             traces[tid] = {
                 "trace_id": tid,
+                "email_id": log.email_id,
                 "email_subject": email.subject if email else "",
                 "classification": email.classification if email else None,
                 "total_latency_ms": 0.0,
@@ -67,15 +68,24 @@ async def list_traces(
         # Mark the trace as failed if any step recorded an error.
         if log.error_message:
             traces[tid]["status"] = "failed"
-        # The created_at for the trace is the earliest log timestamp.
-        if log.created_at < traces[tid]["created_at"]:
+        # The created_at for the trace is the latest log timestamp.
+        if log.created_at > traces[tid]["created_at"]:
             traces[tid]["created_at"] = log.created_at
+
+    # Keep only the most recent trace per email to avoid duplicate emails in list view.
+    latest_trace_by_email: dict[uuid.UUID, dict[str, Any]] = {}
+    for trace in traces.values():
+        email_id = trace["email_id"]
+        current = latest_trace_by_email.get(email_id)
+        if current is None or trace["created_at"] > current["created_at"]:
+            latest_trace_by_email[email_id] = trace
 
     # Sort by created_at descending (most recent first) then paginate.
     sorted_traces = sorted(
-        traces.values(), key=lambda t: t["created_at"], reverse=True
+        latest_trace_by_email.values(), key=lambda t: t["created_at"], reverse=True
     )
-    return sorted_traces[offset : offset + limit]
+    total_count = len(sorted_traces)
+    return sorted_traces[offset : offset + limit], total_count
 
 
 async def get_trace_detail(
@@ -135,6 +145,7 @@ async def get_trace_detail(
         ]
         steps.append(
             {
+                "id": str(log.id),
                 "step_name": log.step_name,
                 "step_order": log.step_order,
                 "input_state": log.input_state,

@@ -37,6 +37,7 @@ class StepDetail(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    id: str = Field(description="Agent log record identifier")
     step_name: str = Field(description="Workflow node name (e.g. 'classify', 'retrieve')")
     step_order: int = Field(ge=0, description="Execution order within the trace")
     input_state: dict[str, Any] | None = Field(

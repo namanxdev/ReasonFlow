@@ -4,7 +4,7 @@ import type { Email, EmailFilters, PaginatedResponse } from "@/types";
 
 export function useEmails(filters: EmailFilters) {
   return useQuery({
-    queryKey: ["emails", filters],
+    queryKey: ["emails", filters.page, filters.page_size, filters.status, filters.classification, filters.search, filters.sort_by, filters.sort_order],
     queryFn: () =>
       api
         .get<PaginatedResponse<Email>>("/emails", {
@@ -19,6 +19,10 @@ export function useEmails(filters: EmailFilters) {
           },
         })
         .then((r) => r.data),
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    placeholderData: (previousData) => previousData,
   });
 }
 

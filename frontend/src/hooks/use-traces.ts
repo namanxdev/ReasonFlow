@@ -11,6 +11,8 @@ export function useTraces(page: number = 1, pageSize: number = 20) {
           params: { limit: pageSize, offset: (page - 1) * pageSize },
         })
         .then((r) => r.data),
+    staleTime: 0,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -20,5 +22,7 @@ export function useTraceDetail(traceId: string) {
     queryFn: () =>
       api.get<TraceDetail>(`/traces/${traceId}`).then((r) => r.data),
     enabled: !!traceId,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
   });
 }
