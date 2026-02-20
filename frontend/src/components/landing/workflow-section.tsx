@@ -88,7 +88,7 @@ export function WorkflowSection() {
               <div className="relative">
                 {/* Number and Icon */}
                 <div className="flex items-start justify-between mb-4">
-                  <span className="text-4xl font-medium text-muted/30">{step.number}</span>
+                  <span className="text-4xl font-semibold text-muted-foreground/40">{step.number}</span>
                   <div className={`w-12 h-12 rounded-xl ${step.color} flex items-center justify-center shadow-lg`}>
                     <step.icon className="w-6 h-6 text-white" />
                   </div>
