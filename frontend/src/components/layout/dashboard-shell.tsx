@@ -2,6 +2,7 @@
 
 import { ReactNode } from "react";
 import { motion } from "framer-motion";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 
 interface DashboardShellProps {
   children: ReactNode;
@@ -9,6 +10,24 @@ interface DashboardShellProps {
 }
 
 export function DashboardShell({ children, className = "" }: DashboardShellProps) {
+  const reducedMotion = useReducedMotion();
+
+  if (reducedMotion) {
+    return (
+      <div className="relative min-h-screen">
+        {/* Background */}
+        <div className="fixed inset-0 bg-page" />
+        <div className="fixed inset-0 bg-dot-pattern opacity-[0.03]" />
+        <div className="fixed inset-0 bg-aurora-pink opacity-30" />
+        
+        {/* Content - no animation */}
+        <div className={`relative z-10 ${className}`}>
+          {children}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen">
       {/* Background */}
@@ -39,13 +58,10 @@ interface PageHeaderProps {
 }
 
 export function PageHeader({ icon, iconColor = "bg-primary/10", title, subtitle, action }: PageHeaderProps) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="flex items-start justify-between"
-    >
+  const reducedMotion = useReducedMotion();
+
+  const content = (
+    <>
       <div className="flex items-center gap-4">
         <div className={`w-12 h-12 rounded-2xl ${iconColor} flex items-center justify-center shadow-sm`}>
           {icon}
@@ -56,6 +72,21 @@ export function PageHeader({ icon, iconColor = "bg-primary/10", title, subtitle,
         </div>
       </div>
       {action && <div className="flex items-center gap-2">{action}</div>}
+    </>
+  );
+
+  if (reducedMotion) {
+    return <div className="flex items-start justify-between">{content}</div>;
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="flex items-start justify-between"
+    >
+      {content}
     </motion.div>
   );
 }
@@ -79,6 +110,37 @@ const colorClasses = {
 };
 
 export function StatCard({ label, value, change, changeType = "neutral", icon, color }: StatCardProps) {
+  const reducedMotion = useReducedMotion();
+
+  const content = (
+    <div className="flex items-start justify-between">
+      <div>
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <p className="text-2xl font-semibold mt-1 text-foreground">{value}</p>
+        {change && (
+          <p className={`text-xs mt-1 ${
+            changeType === "positive" ? "text-green-600" :
+            changeType === "negative" ? "text-red-600" :
+            "text-muted-foreground"
+          }`}>
+            {change}
+          </p>
+        )}
+      </div>
+      <div className="w-10 h-10 rounded-xl bg-white/80 flex items-center justify-center shadow-sm">
+        {icon}
+      </div>
+    </div>
+  );
+
+  if (reducedMotion) {
+    return (
+      <div className={`glass-card rounded-2xl p-5 feature-card ${colorClasses[color]}`}>
+        {content}
+      </div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -86,24 +148,7 @@ export function StatCard({ label, value, change, changeType = "neutral", icon, c
       transition={{ duration: 0.4 }}
       className={`glass-card rounded-2xl p-5 feature-card ${colorClasses[color]}`}
     >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-muted-foreground">{label}</p>
-          <p className="text-2xl font-semibold mt-1 text-foreground">{value}</p>
-          {change && (
-            <p className={`text-xs mt-1 ${
-              changeType === "positive" ? "text-green-600" :
-              changeType === "negative" ? "text-red-600" :
-              "text-muted-foreground"
-            }`}>
-              {change}
-            </p>
-          )}
-        </div>
-        <div className="w-10 h-10 rounded-xl bg-white/80 flex items-center justify-center shadow-sm">
-          {icon}
-        </div>
-      </div>
+      {content}
     </motion.div>
   );
 }
@@ -116,7 +161,19 @@ interface SectionCardProps {
 }
 
 export function SectionCard({ children, className = "", gradientBorder = false }: SectionCardProps) {
+  const reducedMotion = useReducedMotion();
+
   if (gradientBorder) {
+    if (reducedMotion) {
+      return (
+        <div className={`gradient-border-card ${className}`}>
+          <div className="relative bg-white rounded-2xl p-6">
+            {children}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -128,6 +185,14 @@ export function SectionCard({ children, className = "", gradientBorder = false }
           {children}
         </div>
       </motion.div>
+    );
+  }
+
+  if (reducedMotion) {
+    return (
+      <div className={`glass-card rounded-2xl ${className}`}>
+        {children}
+      </div>
     );
   }
 
@@ -151,6 +216,12 @@ interface StaggerContainerProps {
 }
 
 export function StaggerContainer({ children, className = "", staggerDelay = 0.05 }: StaggerContainerProps) {
+  const reducedMotion = useReducedMotion();
+
+  if (reducedMotion) {
+    return <div className={className}>{children}</div>;
+  }
+
   return (
     <motion.div
       initial="hidden"
@@ -170,6 +241,12 @@ export function StaggerContainer({ children, className = "", staggerDelay = 0.05
 }
 
 export function StaggerItem({ children, className = "" }: { children: ReactNode; className?: string }) {
+  const reducedMotion = useReducedMotion();
+
+  if (reducedMotion) {
+    return <div className={className}>{children}</div>;
+  }
+
   return (
     <motion.div
       variants={{

@@ -70,7 +70,7 @@ export function AppShellTopNav({ children }: AppShellTopNavProps) {
       />
 
       {/* Main Content */}
-      <main className="relative z-10 pt-24 pb-6 px-4 sm:px-6 lg:px-8">
+      <main id="main-content" className="relative z-10 pt-24 pb-6 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           {children}
         </div>

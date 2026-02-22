@@ -19,7 +19,7 @@ from tests.services.conftest import make_email, make_user
 def _scalars_first(item):
     scalars_mock = MagicMock()
     scalars_mock.first.return_value = item
-    result_mock = AsyncMock()
+    result_mock = MagicMock()
     result_mock.scalars.return_value = scalars_mock
     return result_mock
 
@@ -27,7 +27,7 @@ def _scalars_first(item):
 def _scalars_all(items):
     scalars_mock = MagicMock()
     scalars_mock.all.return_value = items
-    result_mock = AsyncMock()
+    result_mock = MagicMock()
     result_mock.scalars.return_value = scalars_mock
     return result_mock
 

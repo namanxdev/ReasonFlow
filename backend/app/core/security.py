@@ -18,6 +18,18 @@ from app.core.config import settings
 # ---------------------------------------------------------------------------
 
 REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 15
+
+
+def create_password_reset_token(data: dict[str, Any]) -> str:
+    """Create a signed JWT password reset token with a 15-minute lifetime.
+
+    The token includes the 'type': 'reset' claim for validation.
+    """
+    to_encode = data.copy()
+    to_encode["exp"] = datetime.now(UTC) + timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
+    to_encode["type"] = "reset"
+    return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
 def hash_password(password: str) -> str:
@@ -78,15 +90,22 @@ def decode_token(token: str) -> dict[str, Any]:
 # Fernet (OAuth token encryption)
 # ---------------------------------------------------------------------------
 
+# Module-level cache for Fernet instance to avoid re-creation on each call
+_fernet_instance: Fernet | None = None
+
 
 def _derive_fernet_key() -> bytes:
-    """Derive a Fernet key from JWT_SECRET_KEY via SHA-256."""
-    digest = hashlib.sha256(settings.JWT_SECRET_KEY.encode()).digest()
+    """Derive a Fernet key from ENCRYPTION_KEY via SHA-256."""
+    digest = hashlib.sha256(settings.ENCRYPTION_KEY.encode()).digest()
     return base64.urlsafe_b64encode(digest)
 
 
 def _get_fernet() -> Fernet:
-    return Fernet(_derive_fernet_key())
+    """Get or create the cached Fernet instance."""
+    global _fernet_instance
+    if _fernet_instance is None:
+        _fernet_instance = Fernet(_derive_fernet_key())
+    return _fernet_instance
 
 
 def encrypt_oauth_token(token: str) -> str:

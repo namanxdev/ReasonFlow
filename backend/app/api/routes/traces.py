@@ -28,11 +28,15 @@ router = APIRouter()
 async def list_traces(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    search: str | None = Query(None, description="Search by email subject"),
+    status: str | None = Query(None, description="Filter by trace status: completed, failed, processing"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TraceListResponse:
     """Return a paginated list of trace summaries for the current user."""
-    rows, total_count = await trace_service.list_traces(db, user.id, limit=limit, offset=offset)
+    rows, total_count = await trace_service.list_traces(
+        db, user.id, limit=limit, offset=offset, search=search, status=status
+    )
     items = [TraceResponse(**row) for row in rows]
     return TraceListResponse(
         items=items,

@@ -21,8 +21,9 @@ def _make_scalar_result(value):
     """Return a mock that behaves like scalars().first() returning *value*."""
     scalars_mock = MagicMock()
     scalars_mock.first.return_value = value
-    result_mock = AsyncMock()
+    result_mock = MagicMock()
     result_mock.scalars.return_value = scalars_mock
+    result_mock.scalar_one_or_none.return_value = value
     return result_mock
 
 
@@ -270,3 +271,111 @@ async def test_handle_gmail_callback_raises_400_on_bad_code(mock_db):
             await handle_gmail_callback(mock_db, user, "bad-code")
 
     assert exc_info.value.status_code == 400
+
+
+# -----------------------------------------------------------------------------
+# refresh_user_gmail_token()
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_refresh_user_gmail_token_success(mock_db):
+    """refresh_user_gmail_token() should refresh and store new access token."""
+    from app.services.auth_service import refresh_user_gmail_token
+
+    user = make_user()
+    user.oauth_refresh_token_encrypted = "enc_refresh_token"
+    mock_db.execute = AsyncMock(return_value=_make_scalar_result(user))
+
+    fake_response = MagicMock()
+    fake_response.status_code = 200
+    fake_response.json.return_value = {
+        "access_token": "new_access_token",
+        "expires_in": 3600,
+    }
+
+    with (
+        patch(
+            "app.services.auth_service.decrypt_oauth_token",
+            return_value="decrypted_refresh_token",
+        ),
+        patch(
+            "app.services.auth_service.encrypt_oauth_token",
+            return_value="enc_new_access_token",
+        ),
+        patch("httpx.AsyncClient.post", AsyncMock(return_value=fake_response)),
+    ):
+        result = await refresh_user_gmail_token(mock_db, user.id)
+
+    assert result is True
+    assert user.oauth_token_encrypted == "enc_new_access_token"
+    mock_db.flush.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_refresh_user_gmail_token_no_user(mock_db):
+    """refresh_user_gmail_token() should return False if user not found."""
+    from app.services.auth_service import refresh_user_gmail_token
+
+    mock_db.execute = AsyncMock(return_value=_make_scalar_result(None))
+
+    result = await refresh_user_gmail_token(mock_db, uuid.uuid4())
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_refresh_user_gmail_token_no_refresh_token(mock_db):
+    """refresh_user_gmail_token() should return False if no refresh token."""
+    from app.services.auth_service import refresh_user_gmail_token
+
+    user = make_user()
+    # No oauth_refresh_token_encrypted set
+    mock_db.execute = AsyncMock(return_value=_make_scalar_result(user))
+
+    result = await refresh_user_gmail_token(mock_db, user.id)
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_refresh_user_gmail_token_google_error(mock_db):
+    """refresh_user_gmail_token() should return False on Google API error."""
+    from app.services.auth_service import refresh_user_gmail_token
+
+    user = make_user()
+    user.oauth_refresh_token_encrypted = "enc_refresh_token"
+    mock_db.execute = AsyncMock(return_value=_make_scalar_result(user))
+
+    fake_response = MagicMock()
+    fake_response.status_code = 400
+    fake_response.text = "invalid_grant"
+
+    with (
+        patch(
+            "app.services.auth_service.decrypt_oauth_token",
+            return_value="decrypted_refresh_token",
+        ),
+        patch("httpx.AsyncClient.post", AsyncMock(return_value=fake_response)),
+    ):
+        result = await refresh_user_gmail_token(mock_db, user.id)
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_refresh_user_gmail_token_decrypt_failure(mock_db):
+    """refresh_user_gmail_token() should return False if decrypt fails."""
+    from app.services.auth_service import refresh_user_gmail_token
+
+    user = make_user()
+    user.oauth_refresh_token_encrypted = "invalid_encrypted_token"
+    mock_db.execute = AsyncMock(return_value=_make_scalar_result(user))
+
+    with patch(
+        "app.services.auth_service.decrypt_oauth_token",
+        side_effect=ValueError("Invalid token"),
+    ):
+        result = await refresh_user_gmail_token(mock_db, user.id)
+
+    assert result is False

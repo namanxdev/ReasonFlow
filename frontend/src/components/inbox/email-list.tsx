@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { EmailCard } from "./email-card";
 import type { Email } from "@/types";
 import { ArrowUpDown, Inbox, Mail } from "lucide-react";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 
 interface EmailListProps {
   emails: Email[];
@@ -57,6 +58,8 @@ export function EmailList({
   onSelect,
   onSort,
 }: EmailListProps) {
+  const reducedMotion = useReducedMotion();
+
   if (isLoading) {
     return (
       <div className="divide-y divide-slate-100">
@@ -69,6 +72,45 @@ export function EmailList({
 
   if (emails.length === 0) {
     return <EmptyState />;
+  }
+
+  // Render without animations if reduced motion is preferred
+  if (reducedMotion) {
+    return (
+      <div>
+        {/* Table Header */}
+        <div className="flex items-center gap-4 px-4 py-3 bg-slate-50/80 border-b border-slate-100 text-xs font-medium text-slate-500 uppercase tracking-wide">
+          {tableHeaders.map((header) => (
+            <div key={header.key} className={header.width}>
+              {onSort ? (
+                <button
+                  onClick={() => onSort(header.key)}
+                  className="flex items-center gap-1 hover:text-slate-700 transition-colors"
+                >
+                  {header.label}
+                  <ArrowUpDown className="size-3" />
+                </button>
+              ) : (
+                header.label
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Email List - no animation */}
+        <div className="divide-y divide-slate-100">
+          {emails.map((email) => (
+            <div key={email.id}>
+              <EmailCard
+                email={email}
+                isSelected={selectedId === email.id}
+                onClick={() => onSelect(email.id)}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (

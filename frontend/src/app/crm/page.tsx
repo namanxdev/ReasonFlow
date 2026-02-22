@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
+import type { Contact } from "@/types/contact";
 import { AppShellTopNav } from "@/components/layout/app-shell-top-nav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,21 +23,75 @@ import {
   StickyNote,
   Save,
   AlertCircle,
-  Contact,
+  Contact as ContactIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, SectionCard, StaggerContainer, StaggerItem } from "@/components/layout/dashboard-shell";
+import { formatDateTime } from "@/lib/date-utils";
 
-function formatDate(iso: string | null) {
-  if (!iso) return "N/A";
-  return new Date(iso).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+// Memoized Contact Card Component
+interface ContactCardProps {
+  contact: Contact;
+  onSelect: (email: string) => void;
+  isActive: boolean;
 }
+
+const ContactCard = memo(function ContactCard({
+  contact,
+  onSelect,
+  isActive,
+}: ContactCardProps) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      className={cn(
+        "border rounded-xl p-4 cursor-pointer hover:shadow-lg transition-all",
+        isActive
+          ? "border-indigo-500 bg-indigo-50"
+          : "hover:border-indigo-200 bg-white/50"
+      )}
+      onClick={() => onSelect(contact.email)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(contact.email);
+        }
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
+          <ContactIcon className="w-5 h-5 text-indigo-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-sm truncate">
+            {contact.name || contact.email}
+          </p>
+          <p className="text-xs text-muted-foreground truncate">
+            {contact.email}
+          </p>
+          {contact.company && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {contact.company}
+            </p>
+          )}
+        </div>
+      </div>
+      {contact.tags && contact.tags.length > 0 && (
+        <div className="flex gap-1 mt-3 ml-[52px]">
+          {contact.tags.slice(0, 3).map((tag) => (
+            <span
+              key={tag}
+              className="text-xs bg-indigo-100 text-indigo-600 rounded-full px-2 py-0.5 font-medium"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
 
 export default function CrmPage() {
   const [searchEmail, setSearchEmail] = useState("");
@@ -164,46 +220,16 @@ export default function CrmPage() {
                 ) : contacts && contacts.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {contacts.map((c) => (
-                      <div
+                      <ContactCard
                         key={c.email}
-                        className="border rounded-xl p-4 cursor-pointer hover:shadow-lg hover:border-indigo-200 transition-all bg-white/50"
-                        onClick={() => {
-                          setSearchEmail(c.email);
-                          setActiveEmail(c.email);
+                        contact={c}
+                        onSelect={(email) => {
+                          setSearchEmail(email);
+                          setActiveEmail(email);
                           setIsEditing(false);
                         }}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                            <Contact className="w-5 h-5 text-indigo-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate">
-                              {c.name || c.email}
-                            </p>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {c.email}
-                            </p>
-                            {c.company && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {c.company}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        {c.tags && c.tags.length > 0 && (
-                          <div className="flex gap-1 mt-3 ml-[52px]">
-                            {c.tags.slice(0, 3).map((tag) => (
-                              <span
-                                key={tag}
-                                className="text-xs bg-indigo-100 text-indigo-600 rounded-full px-2 py-0.5 font-medium"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                        isActive={c.email === activeEmail}
+                      />
                     ))}
                   </div>
                 ) : (
@@ -354,7 +380,7 @@ export default function CrmPage() {
                     </div>
                   </div>
                   <div className="mt-6 pt-4 border-t text-xs text-muted-foreground">
-                    Last interaction: {formatDate(contact.last_interaction)}
+                    Last interaction: {contact.last_interaction ? formatDateTime(contact.last_interaction) : "N/A"}
                   </div>
                 </div>
               </SectionCard>

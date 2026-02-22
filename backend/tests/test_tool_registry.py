@@ -113,9 +113,16 @@ async def test_send_email_tool_with_mock_gmail_client() -> None:
     mock_module = MagicMock()
     mock_module.GmailClient = MagicMock(return_value=mock_client)
 
-    with patch.dict("sys.modules", {"app.integrations.gmail.client": mock_module}):
+    fake_creds = {"access_token": "fake-token"}
+    with (
+        patch.dict("sys.modules", {"app.integrations.gmail.client": mock_module}),
+        patch(
+            "app.agent.tools.registry._get_credentials_from_user_id",
+            AsyncMock(return_value=fake_creds),
+        ),
+    ):
         result = await fn(
-            {"to": "alice@example.com", "subject": "Re: Hi", "body": "Hello back"}
+            {"to": "alice@example.com", "subject": "Re: Hi", "body": "Hello back", "user_id": "00000000-0000-0000-0000-000000000001"}
         )
 
     assert result["status"] == "sent"

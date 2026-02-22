@@ -4,15 +4,33 @@ import { useSummaryStats } from "@/hooks/use-metrics";
 import { Card, CardContent } from "@/components/ui/card";
 import { Mail, Clock, CheckCircle, Eye } from "lucide-react";
 import { motion } from "framer-motion";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 
 interface StatCardProps {
   title: string;
   value: string;
   icon: React.ReactNode;
   index: number;
+  reducedMotion: boolean;
 }
 
-function StatCard({ title, value, icon, index }: StatCardProps) {
+function StatCard({ title, value, icon, index, reducedMotion }: StatCardProps) {
+  if (reducedMotion) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col gap-2">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <p className="text-2xl font-bold">{value}</p>
+              <p className="text-sm text-muted-foreground mt-1">{title}</p>
+            </div>
+            <div className="text-muted-foreground">{icon}</div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -52,6 +70,7 @@ function SkeletonCard() {
 
 export function StatsCards() {
   const { data, isLoading } = useSummaryStats();
+  const reducedMotion = useReducedMotion();
 
   if (isLoading) {
     return (
@@ -99,6 +118,7 @@ export function StatsCards() {
           value={stat.value}
           icon={stat.icon}
           index={index}
+          reducedMotion={reducedMotion}
         />
       ))}
     </div>

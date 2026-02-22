@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -95,7 +96,7 @@ async def test_generate_node_clamps_confidence() -> None:
     """Out-of-range confidence from LLM should be clamped to [0, 1]."""
     mock_client = MagicMock()
     mock_client.generate_response = AsyncMock(
-        return_value=GenerationResult(response="Draft", tone="formal", confidence=1.9)
+        return_value=SimpleNamespace(response="Draft", tone="formal", confidence=1.9)
     )
 
     with patch("app.agent.nodes.generate.get_gemini_client", return_value=mock_client):

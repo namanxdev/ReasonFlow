@@ -22,11 +22,21 @@ async def list_traces(
     user_id: uuid.UUID,
     limit: int = 50,
     offset: int = 0,
+    search: str | None = None,
+    status: str | None = None,
 ) -> tuple[list[dict[str, Any]], int]:
     """Return a paginated list of recent agent trace summaries for *user_id*.
 
     Each entry corresponds to one unique ``trace_id`` and aggregates the step
     count and total latency across all steps in that trace.
+
+    Args:
+        db: Database session
+        user_id: User ID to filter traces for
+        limit: Maximum number of traces to return
+        offset: Number of traces to skip
+        search: Optional search string to filter by email subject
+        status: Optional status filter ("completed", "failed", "processing")
     """
     # Resolve email IDs owned by the user.
     email_result = await db.execute(
@@ -80,9 +90,27 @@ async def list_traces(
         if current is None or trace["created_at"] > current["created_at"]:
             latest_trace_by_email[email_id] = trace
 
+    # Apply filters.
+    filtered_traces = list(latest_trace_by_email.values())
+
+    # Search filter (case-insensitive search on email subject)
+    if search:
+        search_lower = search.lower()
+        filtered_traces = [
+            t for t in filtered_traces
+            if search_lower in t["email_subject"].lower()
+        ]
+
+    # Status filter
+    if status:
+        filtered_traces = [
+            t for t in filtered_traces
+            if t["status"].lower() == status.lower()
+        ]
+
     # Sort by created_at descending (most recent first) then paginate.
     sorted_traces = sorted(
-        latest_trace_by_email.values(), key=lambda t: t["created_at"], reverse=True
+        filtered_traces, key=lambda t: t["created_at"], reverse=True
     )
     total_count = len(sorted_traces)
     return sorted_traces[offset : offset + limit], total_count

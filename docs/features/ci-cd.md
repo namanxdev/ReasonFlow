@@ -27,7 +27,6 @@ This workflow runs three parallel jobs to validate code quality:
 - Runs the full test suite with pytest
 - Includes service containers for integration testing:
   - **PostgreSQL** (`pgvector/pgvector:pg16`) — Database with pgvector extension
-  - **Redis** (`redis:7-alpine`) — Cache and session store
 - Generates coverage reports in XML format
 - Sets required environment variables for test execution
 
@@ -84,7 +83,7 @@ ruff check .
 cd backend
 mypy app
 
-# Run tests (requires local PostgreSQL and Redis)
+# Run tests (requires local PostgreSQL)
 cd backend
 pytest -v
 
@@ -99,7 +98,7 @@ To test in an environment closer to CI:
 
 ```bash
 # Start services
-docker-compose up -d postgres redis
+docker-compose up -d postgres
 
 # Run tests in container
 docker-compose run --rm backend pytest -v

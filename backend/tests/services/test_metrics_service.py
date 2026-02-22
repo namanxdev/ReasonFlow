@@ -20,7 +20,7 @@ from tests.services.conftest import make_agent_log, make_email, make_tool_execut
 def _scalars_all(items):
     scalars_mock = MagicMock()
     scalars_mock.all.return_value = items
-    result_mock = AsyncMock()
+    result_mock = MagicMock()
     result_mock.scalars.return_value = scalars_mock
     return result_mock
 

@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from app.agent.state.state import AgentState
+from app.agent.state.state import AgentState, AgentStateAccessor
 
-__all__ = ["AgentState"]
+__all__ = ["AgentState", "AgentStateAccessor"]

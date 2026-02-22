@@ -2,18 +2,36 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.api.middleware.idempotency import IdempotencyMiddleware
+from app.api.middleware.request_id import RequestIdMiddleware
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.redis import close_redis
+from app.core.logging import setup_logging
 from app.schemas.health import HealthResponse
 from app.services import health_service
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Middleware to add security headers to all responses."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Content-Security-Policy"] = "default-src 'self'"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
 
 
 def _validate_production_config() -> None:
@@ -21,19 +39,33 @@ def _validate_production_config() -> None:
 
     Raises:
         ValueError: If any required production configuration is missing or invalid.
+        SystemExit: If validation fails, exits with code 1 to prevent startup.
     """
-    settings.validate_production()
+    try:
+        settings.validate_production()
+    except ValueError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.critical("CRITICAL CONFIGURATION ERROR: %s", e)
+        print(f"\n{'=' * 60}", file=sys.stderr)
+        print("CRITICAL CONFIGURATION ERROR - Application Startup Aborted", file=sys.stderr)
+        print(f"{'=' * 60}\n", file=sys.stderr)
+        print(e, file=sys.stderr)
+        print(f"\n{'=' * 60}", file=sys.stderr)
+        print("Set a secure JWT_SECRET_KEY to start the application.", file=sys.stderr)
+        print(f"{'=' * 60}\n", file=sys.stderr)
+        sys.exit(1)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler for startup/shutdown."""
     # Startup
+    setup_logging()
     if settings.is_production:
         _validate_production_config()
     yield
     # Shutdown
-    await close_redis()
 
 
 def create_app() -> FastAPI:
@@ -47,13 +79,22 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if settings.APP_DEBUG else None,
     )
 
+    # Request ID middleware (added first to capture ID for all subsequent middleware)
+    app.add_middleware(RequestIdMiddleware)
+
+    # Security headers middleware (added before CORS)
+    app.add_middleware(SecurityHeadersMiddleware)
+
+    # Idempotency middleware
+    app.add_middleware(IdempotencyMiddleware)
+
     # CORS
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With"],
     )
 
     # Health endpoint

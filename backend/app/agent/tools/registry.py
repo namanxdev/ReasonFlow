@@ -11,10 +11,62 @@ import logging
 from collections.abc import Callable, Coroutine
 from typing import Any
 
+from app.core.security import decrypt_oauth_token
+
 logger = logging.getLogger(__name__)
 
 # Type alias for an async tool callable.
 ToolFn = Callable[[dict[str, Any]], Coroutine[Any, Any, dict[str, Any]]]
+
+
+async def _get_credentials_from_user_id(user_id: str) -> dict[str, Any] | None:
+    """Fetch and decrypt user OAuth credentials from the database.
+
+    Returns a dict with 'access_token' and optionally 'refresh_token',
+    or None if the user has no OAuth credentials.
+    """
+    import uuid
+
+    from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.core.database import async_session_factory
+    from app.models.user import User
+
+    try:
+        user_uuid = uuid.UUID(user_id)
+    except ValueError:
+        logger.warning("Invalid user_id format: %s", user_id)
+        return None
+
+    async with async_session_factory() as db:
+        try:
+            result = await db.execute(select(User).where(User.id == user_uuid))
+            user = result.scalar_one_or_none()
+
+            if user is None or not user.oauth_token_encrypted:
+                return None
+
+            credentials: dict[str, Any] = {}
+
+            try:
+                credentials["access_token"] = decrypt_oauth_token(user.oauth_token_encrypted)
+            except ValueError as exc:
+                logger.warning("Failed to decrypt access token for user=%s: %s", user_id, exc)
+                return None
+
+            if user.oauth_refresh_token_encrypted:
+                try:
+                    credentials["refresh_token"] = decrypt_oauth_token(
+                        user.oauth_refresh_token_encrypted
+                    )
+                except ValueError:
+                    logger.warning("Failed to decrypt refresh token for user=%s", user_id)
+
+            return credentials
+        except Exception as exc:
+            logger.warning("Failed to get user credentials for user=%s: %s", user_id, exc)
+            return None
 
 # Internal registry: tool_name -> async callable.
 _registry: dict[str, ToolFn] = {}
@@ -70,12 +122,21 @@ async def send_email(params: dict[str, Any]) -> dict[str, Any]:
         subject (str): Email subject.
         body (str): Email body text.
         thread_id (str, optional): Gmail thread to reply in.
+        user_id (str): User ID for OAuth credentials.
     """
     try:
         # Lazy import to avoid circular / missing dependency errors at load time.
         from app.integrations.gmail.client import GmailClient  # type: ignore[import]
 
-        client = GmailClient()
+        user_id = params.get("user_id")
+        if not user_id:
+            raise ValueError("user_id is required for send_email tool")
+
+        credentials = await _get_credentials_from_user_id(user_id)
+        if credentials is None:
+            raise RuntimeError("User has no valid Gmail OAuth credentials")
+
+        client = GmailClient(credentials=credentials)
         result = await client.send_email(
             to=params.get("to", ""),
             subject=params.get("subject", ""),
@@ -100,11 +161,20 @@ async def create_draft(params: dict[str, Any]) -> dict[str, Any]:
         subject (str): Email subject.
         body (str): Draft body text.
         thread_id (str, optional): Gmail thread to reply in.
+        user_id (str): User ID for OAuth credentials.
     """
     try:
         from app.integrations.gmail.client import GmailClient  # type: ignore[import]
 
-        client = GmailClient()
+        user_id = params.get("user_id")
+        if not user_id:
+            raise ValueError("user_id is required for create_draft tool")
+
+        credentials = await _get_credentials_from_user_id(user_id)
+        if credentials is None:
+            raise RuntimeError("User has no valid Gmail OAuth credentials")
+
+        client = GmailClient(credentials=credentials)
         result = await client.create_draft(
             to=params.get("to", ""),
             subject=params.get("subject", ""),

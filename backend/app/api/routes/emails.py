@@ -17,8 +17,11 @@ from app.schemas.email import (
     EmailListResponse,
     EmailProcessResponse,
     EmailResponse,
+    EmailStatsResponse,
 )
 from app.services import email_service
+from sqlalchemy import func, select
+from app.models.email import Email
 
 router = APIRouter()
 
@@ -114,4 +117,32 @@ async def process_email(
     return EmailProcessResponse(
         trace_id=result["trace_id"],
         status=result["status"],
+    )
+
+
+@router.get("/stats", response_model=EmailStatsResponse, summary="Get email counts by status")
+async def get_email_stats(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> EmailStatsResponse:
+    """Get email counts by status for the current user."""
+    result = await db.execute(
+        select(Email.status, func.count())
+        .where(Email.user_id == user.id)
+        .group_by(Email.status)
+    )
+
+    counts = {status: 0 for status in EmailStatus}
+    for status, count in result.all():
+        counts[status] = count
+
+    return EmailStatsResponse(
+        pending=counts.get(EmailStatus.PENDING, 0),
+        processing=counts.get(EmailStatus.PROCESSING, 0),
+        drafted=counts.get(EmailStatus.DRAFTED, 0),
+        needs_review=counts.get(EmailStatus.NEEDS_REVIEW, 0),
+        approved=counts.get(EmailStatus.APPROVED, 0),
+        sent=counts.get(EmailStatus.SENT, 0),
+        rejected=counts.get(EmailStatus.REJECTED, 0),
+        total=sum(counts.values()),
     )

@@ -67,6 +67,7 @@ async def test_sync_emails_auto_creates_crm_contact_for_new_sender():
 
     crm = MockCRM()
     with (
+        patch("app.services.email_service.refresh_user_gmail_token", AsyncMock(return_value=False)),
         patch("app.services.email_service.decrypt_oauth_token", return_value="plain_token"),
         patch(
             "app.services.email_service.GmailClient.fetch_emails",
@@ -113,6 +114,7 @@ async def test_sync_emails_skips_crm_update_for_existing_contact():
 
     crm = MockCRM()
     with (
+        patch("app.services.email_service.refresh_user_gmail_token", AsyncMock(return_value=False)),
         patch("app.services.email_service.decrypt_oauth_token", return_value="plain_token"),
         patch(
             "app.services.email_service.GmailClient.fetch_emails",
@@ -164,6 +166,7 @@ async def test_sync_emails_deduplicates_senders_across_raw_emails():
 
     crm = MockCRM()
     with (
+        patch("app.services.email_service.refresh_user_gmail_token", AsyncMock(return_value=False)),
         patch("app.services.email_service.decrypt_oauth_token", return_value="plain_token"),
         patch(
             "app.services.email_service.GmailClient.fetch_emails",
@@ -203,6 +206,7 @@ async def test_sync_emails_crm_failure_does_not_raise():
     ]
 
     with (
+        patch("app.services.email_service.refresh_user_gmail_token", AsyncMock(return_value=False)),
         patch("app.services.email_service.decrypt_oauth_token", return_value="plain_token"),
         patch(
             "app.services.email_service.GmailClient.fetch_emails",
@@ -243,6 +247,7 @@ async def test_sync_emails_extracts_plain_email_without_angle_brackets():
 
     crm = MockCRM()
     with (
+        patch("app.services.email_service.refresh_user_gmail_token", AsyncMock(return_value=False)),
         patch("app.services.email_service.decrypt_oauth_token", return_value="plain_token"),
         patch(
             "app.services.email_service.GmailClient.fetch_emails",

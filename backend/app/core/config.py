@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,9 +24,6 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/reasonflow"
 
-    # Redis
-    REDIS_URL: str = "redis://localhost:6379/0"
-
     # Google Gemini API (used by LangChain)
     GEMINI_API_KEY: str = ""
 
@@ -36,12 +33,18 @@ class Settings(BaseSettings):
     GMAIL_REDIRECT_URI: str = "http://localhost:3000/auth/gmail/callback"
 
     # JWT Authentication
-    JWT_SECRET_KEY: str = "change-me-in-production"
+    JWT_SECRET_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_MINUTES: int = 30
 
+    # Encryption (for OAuth tokens - separate from JWT for rotation safety)
+    ENCRYPTION_KEY: str = Field(default="change-me-in-production")
+
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
+
+    # Agent Pipeline
+    AGENT_PIPELINE_TIMEOUT: float = 60.0  # seconds
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
@@ -73,9 +76,23 @@ class Settings(BaseSettings):
                 "(not the default 'change-me-in-production')"
             )
 
+        # Check ENCRYPTION_KEY
+        if not self.ENCRYPTION_KEY or self.ENCRYPTION_KEY == "change-me-in-production":
+            errors.append(
+                "ENCRYPTION_KEY must be set to a secure value in production "
+                "(not the default 'change-me-in-production')"
+            )
+
         # Check GEMINI_API_KEY
         if not self.GEMINI_API_KEY or not self.GEMINI_API_KEY.strip():
             errors.append("GEMINI_API_KEY must be configured in production")
+
+        # Check Gmail OAuth credentials
+        if not self.GMAIL_CLIENT_ID or not self.GMAIL_CLIENT_ID.strip():
+            errors.append("GMAIL_CLIENT_ID must be configured in production")
+
+        if not self.GMAIL_CLIENT_SECRET or not self.GMAIL_CLIENT_SECRET.strip():
+            errors.append("GMAIL_CLIENT_SECRET must be configured in production")
 
         # Check DATABASE_URL
         if not self.DATABASE_URL or not self.DATABASE_URL.strip():

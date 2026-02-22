@@ -11,6 +11,7 @@ import {
   GitBranch,
   Lock,
 } from "lucide-react";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 
 const features = [
   {
@@ -79,6 +80,55 @@ const itemVariants = {
 };
 
 export function FeaturesSection() {
+  const reducedMotion = useReducedMotion();
+
+  // Render without animations if reduced motion is preferred
+  if (reducedMotion) {
+    return (
+      <section id="features" className="relative py-24 lg:py-32 overflow-hidden">
+        {/* Background */}
+        <div className="absolute inset-0 bg-dot-pattern opacity-30" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/50 to-background" />
+        
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Section Header */}
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-medium tracking-tight mb-4">
+              Everything you need to{" "}
+              <span className="text-muted-foreground">automate email</span>
+            </h2>
+          </div>
+
+          {/* Features Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {features.map((feature) => (
+              <div
+                key={feature.title}
+                className="group relative p-6 rounded-2xl bg-white/60 backdrop-blur-sm border border-border/50 hover:border-border transition-all duration-300 hover:shadow-lg"
+              >
+                {/* Gradient background on hover */}
+                <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${feature.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
+                
+                <div className="relative">
+                  {/* Icon */}
+                  <div className={`w-12 h-12 rounded-xl ${feature.iconBg} flex items-center justify-center mb-4 shadow-lg`}>
+                    <feature.icon className="w-6 h-6 text-white" />
+                  </div>
+
+                  {/* Content */}
+                  <h3 className="text-lg font-medium mb-2">{feature.title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {feature.description}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section id="features" className="relative py-24 lg:py-32 overflow-hidden">
       {/* Background */}

@@ -9,6 +9,7 @@ from typing import Any
 
 from app.agent.state import AgentState
 from app.llm.client import get_gemini_client
+from app.llm.utils import truncate_text
 
 logger = logging.getLogger(__name__)
 
@@ -44,16 +45,18 @@ async def generate_node(state: AgentState) -> dict[str, Any]:
     )
 
     # Format context and tool results as readable strings for the prompt.
+    # Truncate email body to avoid exceeding LLM context window.
     context_text = "\n".join(context) if context else "(no context available)"
     tool_results_text = (
         json.dumps(tool_results, indent=2, default=str) if tool_results else "(no tool results)"
     )
+    body = truncate_text(email.get("body", ""), max_chars=4000)
 
     try:
         client = get_gemini_client()
         result = await client.generate_response(
             subject=email.get("subject", ""),
-            body=email.get("body", ""),
+            body=body,
             sender=email.get("sender", ""),
             classification=classification,
             context=context_text,

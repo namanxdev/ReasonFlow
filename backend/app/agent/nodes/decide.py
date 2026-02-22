@@ -8,6 +8,7 @@ from typing import Any
 
 from app.agent.state import AgentState
 from app.llm.client import get_gemini_client
+from app.llm.utils import truncate_text
 
 logger = logging.getLogger(__name__)
 
@@ -73,10 +74,12 @@ async def decide_node(state: AgentState) -> dict[str, Any]:
     try:
         client = get_gemini_client()
         context_text = "\n".join(context) if context else "(no context)"
+        # Truncate email body to avoid exceeding LLM context window.
+        body = truncate_text(email.get("body", ""), max_chars=4000)
         result = await client.decide_tools(
             classification=classification,
             subject=email.get("subject", ""),
-            body=email.get("body", ""),
+            body=body,
             context=context_text,
         )
 

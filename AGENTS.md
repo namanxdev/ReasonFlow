@@ -26,7 +26,6 @@ The core philosophy: *"Stop writing emails. Start approving them."*
 | Database | PostgreSQL + pgvector | 14+ |
 | ORM | SQLAlchemy (async) | 2.0.23+ |
 | Migrations | Alembic | 1.13.0+ |
-| Cache | Redis | 5.0.0+ |
 | Auth | JWT + bcrypt | - |
 
 ### Frontend
@@ -54,7 +53,7 @@ ReasonFlow/
 │   │   ├── api/                # FastAPI routes + middleware
 │   │   │   ├── middleware/     # Error handling, rate limiting
 │   │   │   └── routes/         # Auth, emails, drafts, traces, metrics, calendar, CRM
-│   │   ├── core/               # Config, database, redis, security, dependencies
+│   │   ├── core/               # Config, database, security, dependencies
 │   │   ├── integrations/       # Gmail, Calendar, CRM clients
 │   │   │   ├── calendar/
 │   │   │   ├── crm/
@@ -244,9 +243,6 @@ Create `backend/.env` from `backend/.env.example`:
 # Database
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/reasonflow
 
-# Redis
-REDIS_URL=redis://localhost:6379/0
-
 # Google Gemini API
 GEMINI_API_KEY=your-gemini-api-key-here
 
@@ -277,9 +273,8 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 ### External Services Required
 
 1. **PostgreSQL** with pgvector extension
-2. **Redis** server
-3. **Google Gemini API** key
-4. **Gmail OAuth** credentials (for email integration)
+2. **Google Gemini API** key
+3. **Gmail OAuth** credentials (for email integration)
 
 ## Architecture Overview
 
@@ -351,7 +346,7 @@ All API routes under `/api/v1/`:
 
 1. **Authentication**: JWT-based with configurable expiration
 2. **Authorization**: OAuth tokens encrypted at rest using Fernet
-3. **Rate Limiting**: Redis-backed sliding window (100 req/min default)
+3. **Rate Limiting**: In-memory sliding window (60 req/min default)
 4. **Input Validation**: Pydantic on all API endpoints
 5. **CORS**: Restricted to configured origins
 6. **Secrets**: Stored exclusively in environment variables
@@ -405,7 +400,7 @@ alembic upgrade head
 
 | Metric | Target | Strategy |
 |--------|--------|----------|
-| API latency | < 300ms | Async I/O, connection pooling, Redis caching |
+| API latency | < 300ms | Async I/O, connection pooling |
 | Agent full cycle | < 4s | Parallel tool execution, optimized prompts |
 | Dashboard load | < 1s | SSR, React Query prefetching |
 
@@ -417,10 +412,6 @@ alembic upgrade head
 - Verify PostgreSQL is running
 - Check `DATABASE_URL` in `.env`
 - Ensure pgvector extension is installed
-
-**Redis connection errors**:
-- Verify Redis server is running
-- Check `REDIS_URL` in `.env`
 
 **Gemini API errors**:
 - Verify `GEMINI_API_KEY` is set and valid

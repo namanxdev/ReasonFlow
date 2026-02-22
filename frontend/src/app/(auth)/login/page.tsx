@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { Loader2, ArrowRight, Sparkles } from "lucide-react";
 
 // Google logo SVG component
@@ -47,6 +48,7 @@ export default function LoginPage() {
     email?: string;
     password?: string;
   }>({});
+  const reducedMotion = useReducedMotion();
 
   const validateForm = () => {
     const errors: { email?: string; password?: string } = {};
@@ -59,8 +61,8 @@ export default function LoginPage() {
 
     if (!password) {
       errors.password = "Password is required";
-    } else if (password.length < 6) {
-      errors.password = "Password must be at least 6 characters";
+    } else if (password.length < 8) {
+      errors.password = "Password must be at least 8 characters";
     }
 
     setValidationErrors(errors);
@@ -83,10 +85,13 @@ export default function LoginPage() {
         password,
       });
 
-      const { access_token } = response.data;
+      const { access_token, refresh_token } = response.data;
 
       if (access_token) {
         localStorage.setItem("rf_access_token", access_token);
+        if (refresh_token) {
+          localStorage.setItem("rf_refresh_token", refresh_token);
+        }
         router.push("/inbox");
       } else {
         setError("Login failed. No access token received.");
@@ -130,41 +135,184 @@ export default function LoginPage() {
     <>
       {/* Header */}
       <div className="text-center mb-6">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.3, delay: 0.15 }}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/80 backdrop-blur-sm border border-border/50 shadow-sm mb-4"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-          <span className="text-xs text-muted-foreground">
-            Welcome back
-          </span>
-        </motion.div>
-        <motion.h1
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.2 }}
-          className="text-2xl font-medium tracking-tight"
-        >
-          Sign in to your account
-        </motion.h1>
-        <motion.p
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.25 }}
-          className="text-sm text-muted-foreground mt-1"
-        >
-          Continue automating your inbox
-        </motion.p>
+        {reducedMotion ? (
+          <>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/80 backdrop-blur-sm border border-border/50 shadow-sm mb-4">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span className="text-xs text-muted-foreground">
+                Welcome back
+              </span>
+            </div>
+            <h1 className="text-2xl font-medium tracking-tight">
+              Sign in to your account
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Continue automating your inbox
+            </p>
+          </>
+        ) : (
+          <>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3, delay: 0.15 }}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/80 backdrop-blur-sm border border-border/50 shadow-sm mb-4"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span className="text-xs text-muted-foreground">
+                Welcome back
+              </span>
+            </motion.div>
+            <motion.h1
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+              className="text-2xl font-medium tracking-tight"
+            >
+              Sign in to your account
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.25 }}
+              className="text-sm text-muted-foreground mt-1"
+            >
+              Continue automating your inbox
+            </motion.p>
+          </>
+        )}
       </div>
 
       {/* Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.3 }}
-      >
+      {reducedMotion ? (
+        <div>
+          <Card className="border-border/50 shadow-xl bg-white/80 backdrop-blur-xl">
+            <CardContent className="pt-6 space-y-4">
+              {/* Google OAuth Button */}
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11 relative overflow-hidden group"
+                onClick={handleGmailConnect}
+                disabled={isGmailLoading || isLoading}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-red-500/5 to-yellow-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="relative flex items-center justify-center gap-2">
+                  {isGmailLoading ? (
+                    <Loader2 className="animate-spin w-4 h-4" />
+                  ) : (
+                    <GoogleLogo className="w-4 h-4" />
+                  )}
+                  <span>
+                    {isGmailLoading ? "Connecting..." : "Continue with Google"}
+                  </span>
+                </div>
+              </Button>
+
+              {/* Divider */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <Separator className="w-full" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-card px-2 text-muted-foreground">
+                    or continue with email
+                  </span>
+                </div>
+              </div>
+
+              {/* Form */}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-sm font-medium">
+                    Email
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="name@example.com"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setValidationErrors({ ...validationErrors, email: undefined });
+                    }}
+                    disabled={isLoading}
+                    aria-invalid={!!validationErrors.email}
+                    className="h-11 bg-white/50"
+                  />
+                  {validationErrors.email && (
+                    <p className="text-sm text-destructive">
+                      {validationErrors.email}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-sm font-medium">
+                      Password
+                    </Label>
+                    <Link
+                      href="#"
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setValidationErrors({ ...validationErrors, password: undefined });
+                    }}
+                    disabled={isLoading}
+                    aria-invalid={!!validationErrors.password}
+                    className="h-11 bg-white/50"
+                  />
+                  {validationErrors.password && (
+                    <p className="text-sm text-destructive">
+                      {validationErrors.password}
+                    </p>
+                  )}
+                </div>
+
+                <Button
+                  type="submit"
+                  className="w-full h-11 group"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="animate-spin mr-2" />
+                      Signing in...
+                    </>
+                  ) : (
+                    <>
+                      Sign in
+                      <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
+                </Button>
+              </form>
+
+              {/* Error Message */}
+              {error && (
+                <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+        >
         <Card className="border-border/50 shadow-xl bg-white/80 backdrop-blur-xl">
           <CardContent className="pt-6 space-y-4">
             {/* Google OAuth Button */}
@@ -307,22 +455,35 @@ export default function LoginPage() {
           </CardContent>
         </Card>
       </motion.div>
+      )}
 
       {/* Footer Link */}
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5, delay: 0.4 }}
-        className="mt-6 text-center text-sm"
-      >
-        <span className="text-muted-foreground">Don&apos;t have an account?</span>{" "}
-        <Link
-          href="/register"
-          className="font-medium text-foreground hover:underline underline-offset-4 transition-all"
+      {reducedMotion ? (
+        <p className="mt-6 text-center text-sm">
+          <span className="text-muted-foreground">Don&apos;t have an account?</span>{" "}
+          <Link
+            href="/register"
+            className="font-medium text-foreground hover:underline underline-offset-4 transition-all"
+          >
+            Create one
+          </Link>
+        </p>
+      ) : (
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="mt-6 text-center text-sm"
         >
-          Create one
-        </Link>
-      </motion.p>
+          <span className="text-muted-foreground">Don&apos;t have an account?</span>{" "}
+          <Link
+            href="/register"
+            className="font-medium text-foreground hover:underline underline-offset-4 transition-all"
+          >
+            Create one
+          </Link>
+        </motion.p>
+      )}
     </>
   );
 }

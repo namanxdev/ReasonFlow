@@ -5,6 +5,7 @@ import { PIPELINE_STEPS } from "@/lib/constants";
 import type { AgentLog } from "@/types";
 import { cn } from "@/lib/utils";
 import { ChevronRight, Check, X, Minus, User } from "lucide-react";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 
 interface TraceGraphProps {
   steps: AgentLog[];
@@ -91,6 +92,8 @@ function getStatusConfig(status: "completed" | "failed" | "skipped" | "human_que
 }
 
 export function TraceGraph({ steps, onSelectStep, selectedStepId }: TraceGraphProps) {
+  const reducedMotion = useReducedMotion();
+
   return (
     <div className="w-full overflow-x-auto pb-2">
       <div className="inline-flex items-center gap-3 min-w-full p-2">
@@ -102,61 +105,83 @@ export function TraceGraph({ steps, onSelectStep, selectedStepId }: TraceGraphPr
           const isSelected = step && step.id === selectedStepId;
           const hasStep = !!step;
 
+          const stepContent = (
+            <>
+              {/* Status Icon */}
+              <div className={cn(
+                "absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center shadow-lg",
+                config.iconBg,
+                config.shadow
+              )}>
+                <StatusIcon className="size-4 text-white" />
+              </div>
+
+              <div className="space-y-2">
+                {/* Step Name */}
+                <div className="font-semibold text-sm pr-4">
+                  {formatStepName(stepName)}
+                </div>
+
+                {/* Latency */}
+                {step ? (
+                  <div className="flex items-center gap-1.5 text-xs opacity-80">
+                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                    {formatLatency(step.latency_ms)}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs opacity-60">
+                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                    Skipped
+                  </div>
+                )}
+              </div>
+
+              {/* Selected indicator */}
+              {isSelected && reducedMotion && (
+                <div className="absolute inset-0 rounded-2xl border-2 border-violet-500 pointer-events-none" />
+              )}
+            </>
+          );
+
+          const buttonClassName = cn(
+            "relative rounded-2xl border-2 px-5 py-4 min-w-[160px] transition-all duration-200",
+            config.border,
+            config.bg,
+            config.text,
+            hasStep && "hover:shadow-lg cursor-pointer",
+            !hasStep && "opacity-60 cursor-not-allowed",
+            isSelected && "ring-4 ring-violet-500/30 shadow-lg",
+            "shadow-sm"
+          );
+
           return (
             <div key={stepName} className="flex items-center gap-3">
-              <motion.button
-                whileHover={hasStep ? { scale: 1.02 } : {}}
-                whileTap={hasStep ? { scale: 0.98 } : {}}
-                onClick={() => step && onSelectStep(step)}
-                disabled={!hasStep}
-                className={cn(
-                  "relative rounded-2xl border-2 px-5 py-4 min-w-[160px] transition-all duration-200",
-                  config.border,
-                  config.bg,
-                  config.text,
-                  hasStep && "hover:shadow-lg cursor-pointer",
-                  !hasStep && "opacity-60 cursor-not-allowed",
-                  isSelected && "ring-4 ring-violet-500/30 shadow-lg",
-                  "shadow-sm"
-                )}
-              >
-                {/* Status Icon */}
-                <div className={cn(
-                  "absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center shadow-lg",
-                  config.iconBg,
-                  config.shadow
-                )}>
-                  <StatusIcon className="size-4 text-white" />
-                </div>
-
-                <div className="space-y-2">
-                  {/* Step Name */}
-                  <div className="font-semibold text-sm pr-4">
-                    {formatStepName(stepName)}
-                  </div>
-
-                  {/* Latency */}
-                  {step ? (
-                    <div className="flex items-center gap-1.5 text-xs opacity-80">
-                      <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                      {formatLatency(step.latency_ms)}
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 text-xs opacity-60">
-                      <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                      Skipped
-                    </div>
+              {reducedMotion ? (
+                <button
+                  onClick={() => step && onSelectStep(step)}
+                  disabled={!hasStep}
+                  className={buttonClassName}
+                >
+                  {stepContent}
+                </button>
+              ) : (
+                <motion.button
+                  whileHover={hasStep ? { scale: 1.02 } : {}}
+                  whileTap={hasStep ? { scale: 0.98 } : {}}
+                  onClick={() => step && onSelectStep(step)}
+                  disabled={!hasStep}
+                  className={buttonClassName}
+                >
+                  {stepContent}
+                  {/* Selected indicator with animation */}
+                  {isSelected && (
+                    <motion.div
+                      layoutId="selectedStep"
+                      className="absolute inset-0 rounded-2xl border-2 border-violet-500 pointer-events-none"
+                    />
                   )}
-                </div>
-
-                {/* Selected indicator */}
-                {isSelected && (
-                  <motion.div
-                    layoutId="selectedStep"
-                    className="absolute inset-0 rounded-2xl border-2 border-violet-500 pointer-events-none"
-                  />
-                )}
-              </motion.button>
+                </motion.button>
+              )}
 
               {/* Arrow connector */}
               {index < PIPELINE_STEPS.length - 1 && (

@@ -51,7 +51,7 @@ Set up the Python backend project:
 - Create pyproject.toml with dependencies: fastapi, langchain, langgraph, google-generativeai, pydantic, sqlalchemy, asyncpg, redis, httpx, tenacity
 - Create app/main.py with FastAPI app
 - Create app/core/config.py for settings (Pydantic BaseSettings)
-- Create .env.example with: DATABASE_URL, GEMINI_API_KEY, REDIS_URL, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET
+- Create .env.example with: DATABASE_URL, GEMINI_API_KEY, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET
 - Create Dockerfile for backend
 
 Test: `uvicorn app.main:app --reload` runs without errors

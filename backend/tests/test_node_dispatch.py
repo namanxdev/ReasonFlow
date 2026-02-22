@@ -19,6 +19,7 @@ def _make_state(
     return {
         "email": {
             "id": "d50f5b52-1111-1111-1111-000000000001",
+            "user_id": "d50f5b52-2222-2222-2222-000000000001",
             "subject": "Hello",
             "body": "World",
             "sender": "alice@example.com",
@@ -40,7 +41,11 @@ async def test_dispatch_node_sends_email_when_auto_approved() -> None:
     mock_module = MagicMock()
     mock_module.GmailClient = MagicMock(return_value=mock_gmail)
 
-    with patch.dict("sys.modules", {"app.integrations.gmail.client": mock_module}):
+    fake_creds = {"access_token": "fake-token"}
+    with (
+        patch.dict("sys.modules", {"app.integrations.gmail.client": mock_module}),
+        patch("app.agent.nodes.dispatch._get_user_credentials", AsyncMock(return_value=fake_creds)),
+    ):
         result = await dispatch_node(_make_state(requires_approval=False), db=None)
 
     mock_gmail.send_email.assert_awaited_once()
@@ -56,7 +61,11 @@ async def test_dispatch_node_creates_draft_when_approval_required() -> None:
     mock_module = MagicMock()
     mock_module.GmailClient = MagicMock(return_value=mock_gmail)
 
-    with patch.dict("sys.modules", {"app.integrations.gmail.client": mock_module}):
+    fake_creds = {"access_token": "fake-token"}
+    with (
+        patch.dict("sys.modules", {"app.integrations.gmail.client": mock_module}),
+        patch("app.agent.nodes.dispatch._get_user_credentials", AsyncMock(return_value=fake_creds)),
+    ):
         result = await dispatch_node(_make_state(requires_approval=True), db=None)
 
     mock_gmail.create_draft.assert_awaited_once()

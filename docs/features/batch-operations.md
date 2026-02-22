@@ -1,6 +1,6 @@
 # Batch Operations
 
-ReasonFlow supports batch operations for classifying and processing multiple emails asynchronously with progress tracking via Redis.
+ReasonFlow supports batch operations for classifying and processing multiple emails asynchronously with progress tracking via in-memory storage.
 
 ## Overview
 
@@ -234,25 +234,29 @@ function BatchProgress({ total, processed, succeeded, failed, status }: BatchPro
 }
 ```
 
-## Redis Key Structure
+## In-Memory Job Storage
 
-Batch jobs use the following Redis key pattern:
+Batch jobs are stored in a module-level dictionary (`dict[str, BatchJob]`) keyed by `job_id`. Each entry contains all job state:
 
+```python
+# In-memory structure (module-level dict)
+_jobs: dict[str, BatchJob] = {}
+
+# Each BatchJob holds:
+#   status:    "queued" | "processing" | "completed" | "failed"
+#   progress:  {"total": N, "processed": N, "succeeded": N, "failed": N}
+#   errors:    [{"email_id": "...", "error": "...", "timestamp": "..."}]
+#   metadata:  {"user_id": "...", "email_ids": [...], "job_type": "...", "created_at": "..."}
 ```
-batch:{job_id}:status    -> "queued" | "processing" | "completed" | "failed"
-batch:{job_id}:progress  -> JSON: {"total": N, "processed": N, "succeeded": N, "failed": N}
-batch:{job_id}:errors    -> JSON: [{"email_id": "...", "error": "...", "timestamp": "..."}]
-batch:{job_id}:metadata  -> JSON: {"user_id": "...", "email_ids": [...], "job_type": "...", "created_at": "..."}
-```
 
-### Key Details
+### Storage Details
 
-| Key | Type | Description | TTL |
-|-----|------|-------------|-----|
-| `batch:{job_id}:status` | String | Current job status | 24 hours |
-| `batch:{job_id}:progress` | String | Progress counters (JSON) | 24 hours |
-| `batch:{job_id}:errors` | String | Error list (JSON) | 24 hours |
-| `batch:{job_id}:metadata` | String | Job metadata (JSON) | 24 hours |
+| Field | Type | Description | Retention |
+|-------|------|-------------|----------|
+| `status` | str | Current job status | 24 hours (auto-evicted) |
+| `progress` | dict | Progress counters | 24 hours (auto-evicted) |
+| `errors` | list | Error list | 24 hours (auto-evicted) |
+| `metadata` | dict | Job metadata | 24 hours (auto-evicted) |
 
 ### Job ID Format
 
@@ -292,7 +296,7 @@ Batch operations do not automatically retry failed emails. The frontend should:
 
 3. **Memory usage:**
    - Background tasks hold minimal state
-   - Redis storage: ~1KB per job
+   - In-memory dict: ~1KB per job
 
 ## Security
 
@@ -306,4 +310,4 @@ Batch operations do not automatically retry failed emails. The frontend should:
 
 3. **Data retention:**
    - Job data auto-expires after 24 hours
-   - No sensitive data stored in Redis (only IDs and counts)
+   - No sensitive data stored in memory (only IDs and counts); data is in-memory only, no persistence

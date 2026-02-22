@@ -25,23 +25,6 @@ services:
     networks:
       - reasonflow-network
 
-  # Redis cache
-  redis:
-    image: redis:7-alpine
-    container_name: reasonflow-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redisdata:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
-    networks:
-      - reasonflow-network
-
   # FastAPI backend
   backend:
     build:
@@ -53,8 +36,6 @@ services:
     environment:
       # Database connection using Docker service name
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/reasonflow
-      # Redis connection using Docker service name
-      REDIS_URL: redis://redis:6379/0
       # Load additional env vars from .env file
       - GEMINI_API_KEY
       - GMAIL_CLIENT_ID
@@ -71,19 +52,35 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     volumes:
       - ./backend/app:/app/app:ro
     networks:
       - reasonflow-network
     restart: unless-stopped
 
+  # Next.js frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: reasonflow-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+    depends_on:
+      - backend
+    networks:
+      - reasonflow-network
+
 volumes:
   pgdata:
     name: reasonflow-pgdata
-  redisdata:
-    name: reasonflow-redisdata
 
 networks:
   reasonflow-network:

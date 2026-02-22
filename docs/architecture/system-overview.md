@@ -43,13 +43,13 @@ ReasonFlow is a full-stack autonomous inbox agent composed of three main layers:
                        │
 ┌──────────────────────▼───────────────────────────────────┐
 │                    DATA LAYER                              │
-│  ┌────────────────────┐    ┌─────────────────────┐        │
-│  │  PostgreSQL         │    │  Redis               │        │
-│  │  + pgvector         │    │  - Rate limiting     │        │
-│  │  - Users            │    │  - Session cache     │        │
-│  │  - Emails           │    │  - Task queues       │        │
-│  │  - Agent Logs       │    │                      │        │
-│  │  - Tool Executions  │    └─────────────────────┘        │
+│  ┌────────────────────┐                                   │
+│  │  PostgreSQL         │    In-memory services:            │
+│  │  + pgvector         │    - Rate limiting (sliding       │
+│  │  - Users            │      window)                      │
+│  │  - Emails           │    - Event bus (asyncio.Queue)    │
+│  │  - Agent Logs       │    - Batch job tracking           │
+│  │  - Tool Executions  │                                   │
 │  │  - Embeddings       │                                   │
 │  └────────────────────┘                                   │
 └──────────────────────────────────────────────────────────┘
@@ -64,7 +64,7 @@ ReasonFlow is a full-stack autonomous inbox agent composed of three main layers:
 | LLM Framework | LangChain + Gemini | Prompt management, tool wrappers |
 | LLM Provider | Google Gemini API | Classification, generation, embeddings |
 | Database | PostgreSQL + pgvector | Persistent storage + vector search |
-| Cache | Redis | Rate limiting, session caching |
+| In-memory Services | asyncio / dict | Rate limiting, event bus, batch tracking |
 | Frontend | Next.js 14 (App Router) | SSR dashboard |
 | UI Components | shadcn/ui, Aceternity, Magic UI, HeroUI, Fancy Components | Rich interactive UI |
 | State Management | Zustand + TanStack Query | Client state + server state |
@@ -81,7 +81,7 @@ ReasonFlow is a full-stack autonomous inbox agent composed of three main layers:
 
 | Metric | Target | Strategy |
 |--------|--------|----------|
-| API latency | < 300ms | Async I/O, connection pooling, Redis caching |
+| API latency | < 300ms | Async I/O, connection pooling |
 | Agent full cycle | < 4s | Parallel tool execution, optimized prompts |
 | Dashboard load | < 1s | SSR, React Query prefetching |
 
@@ -89,7 +89,7 @@ ReasonFlow is a full-stack autonomous inbox agent composed of three main layers:
 
 - JWT-based authentication with configurable expiration
 - OAuth2 token encryption at rest
-- Redis-backed rate limiting (sliding window)
+- In-memory rate limiting (sliding window)
 - Input validation via Pydantic on all endpoints
 - CORS restricted to frontend origin
 - Secrets stored exclusively in environment variables

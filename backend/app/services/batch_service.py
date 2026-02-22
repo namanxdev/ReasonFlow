@@ -1,4 +1,8 @@
-"""Batch operation business logic with background task processing."""
+"""Batch operation business logic with background task processing.
+
+Uses in-memory storage for batch job state tracking.
+Suitable for single-server MVP deployments. State resets on server restart.
+"""
 
 from __future__ import annotations
 
@@ -7,13 +11,11 @@ import logging
 import uuid
 from datetime import UTC, datetime
 
-import redis.asyncio as redis
 from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import async_session_factory
-from app.core.redis import get_redis_client
 from app.llm.client import get_gemini_client
 from app.models.email import Email, EmailClassification, EmailStatus
 from app.models.user import User
@@ -21,155 +23,76 @@ from app.schemas.batch import BatchJobResponse, BatchStatusResponse
 
 logger = logging.getLogger(__name__)
 
-# Redis key prefixes and TTL
-BATCH_KEY_PREFIX = "batch"
-BATCH_TTL_SECONDS = 86400  # 24 hours
+
+# In-memory batch job store: {job_id: {status, progress, errors, metadata}}
+_batch_jobs: dict[str, dict] = {}
 
 
-def _get_redis_keys(job_id: str) -> dict[str, str]:
-    """Generate Redis key names for a batch job."""
-    return {
-        "status": f"{BATCH_KEY_PREFIX}:{job_id}:status",
-        "progress": f"{BATCH_KEY_PREFIX}:{job_id}:progress",
-        "errors": f"{BATCH_KEY_PREFIX}:{job_id}:errors",
-        "metadata": f"{BATCH_KEY_PREFIX}:{job_id}:metadata",
-    }
-
-
-async def _initialize_job(
-    redis_client: redis.Redis,
+def _initialize_job(
     job_id: str,
     user_id: uuid.UUID,
     email_ids: list[uuid.UUID],
     job_type: str,
 ) -> None:
-    """Initialize batch job state in Redis."""
-    keys = _get_redis_keys(job_id)
+    """Initialize batch job state in memory."""
     now = datetime.now(UTC).isoformat()
-
-    pipe = redis_client.pipeline()
-
-    # Set initial status
-    pipe.setex(
-        keys["status"],
-        BATCH_TTL_SECONDS,
-        "queued",
-    )
-
-    # Set progress info
-    pipe.setex(
-        keys["progress"],
-        BATCH_TTL_SECONDS,
-        json.dumps({
+    _batch_jobs[job_id] = {
+        "status": "queued",
+        "progress": {
             "total": len(email_ids),
             "processed": 0,
             "succeeded": 0,
             "failed": 0,
-        }),
-    )
-
-    # Initialize empty errors list
-    pipe.setex(
-        keys["errors"],
-        BATCH_TTL_SECONDS,
-        json.dumps([]),
-    )
-
-    # Set metadata
-    pipe.setex(
-        keys["metadata"],
-        BATCH_TTL_SECONDS,
-        json.dumps({
+        },
+        "errors": [],
+        "metadata": {
             "user_id": str(user_id),
             "email_ids": [str(eid) for eid in email_ids],
             "job_type": job_type,
             "created_at": now,
             "updated_at": now,
-        }),
-    )
-
-    await pipe.execute()
+        },
+    }
 
 
-async def _update_job_status(
-    redis_client: redis.Redis,
-    job_id: str,
-    status: str,
-) -> None:
-    """Update batch job status in Redis."""
-    keys = _get_redis_keys(job_id)
+def _update_job_status(job_id: str, new_status: str) -> None:
+    """Update batch job status in memory."""
+    job = _batch_jobs.get(job_id)
+    if job is None:
+        return
     now = datetime.now(UTC).isoformat()
-
-    pipe = redis_client.pipeline()
-    pipe.setex(keys["status"], BATCH_TTL_SECONDS, status)
-
-    # Update metadata with new timestamp
-    metadata_raw = await redis_client.get(keys["metadata"])
-    if metadata_raw:
-        metadata = json.loads(metadata_raw)
-        metadata["updated_at"] = now
-        if status in ("completed", "failed"):
-            metadata["completed_at"] = now
-        pipe.setex(keys["metadata"], BATCH_TTL_SECONDS, json.dumps(metadata))
-
-    await pipe.execute()
+    job["status"] = new_status
+    job["metadata"]["updated_at"] = now
+    if new_status in ("completed", "failed"):
+        job["metadata"]["completed_at"] = now
 
 
-async def _update_progress(
-    redis_client: redis.Redis,
+def _update_progress(
     job_id: str,
     processed: int,
     succeeded: int,
     failed: int,
 ) -> None:
-    """Update batch job progress in Redis."""
-    keys = _get_redis_keys(job_id)
-    now = datetime.now(UTC).isoformat()
-
-    pipe = redis_client.pipeline()
-
-    # Update progress
-    progress_raw = await redis_client.get(keys["progress"])
-    if progress_raw:
-        progress = json.loads(progress_raw)
-        progress["processed"] = processed
-        progress["succeeded"] = succeeded
-        progress["failed"] = failed
-        pipe.setex(keys["progress"], BATCH_TTL_SECONDS, json.dumps(progress))
-
-    # Update metadata timestamp
-    metadata_raw = await redis_client.get(keys["metadata"])
-    if metadata_raw:
-        metadata = json.loads(metadata_raw)
-        metadata["updated_at"] = now
-        pipe.setex(keys["metadata"], BATCH_TTL_SECONDS, json.dumps(metadata))
-
-    await pipe.execute()
+    """Update batch job progress in memory."""
+    job = _batch_jobs.get(job_id)
+    if job is None:
+        return
+    job["progress"]["processed"] = processed
+    job["progress"]["succeeded"] = succeeded
+    job["progress"]["failed"] = failed
+    job["metadata"]["updated_at"] = datetime.now(UTC).isoformat()
 
 
-async def _add_error(
-    redis_client: redis.Redis,
-    job_id: str,
-    email_id: uuid.UUID,
-    error_message: str,
-) -> None:
+def _add_error(job_id: str, email_id: uuid.UUID, error_message: str) -> None:
     """Add an error entry to the batch job."""
-    keys = _get_redis_keys(job_id)
-
-    errors_raw = await redis_client.get(keys["errors"])
-    errors = json.loads(errors_raw) if errors_raw else []
-
-    errors.append({
+    job = _batch_jobs.get(job_id)
+    if job is None:
+        return
+    job["errors"].append({
         "email_id": str(email_id),
         "error": error_message,
         "timestamp": datetime.now(UTC).isoformat(),
     })
-
-    await redis_client.setex(
-        keys["errors"],
-        BATCH_TTL_SECONDS,
-        json.dumps(errors),
-    )
 
 
 async def batch_classify(
@@ -221,9 +144,8 @@ async def batch_classify(
     # Generate job ID
     job_id = f"cls_{uuid.uuid4().hex[:16]}"
 
-    # Initialize job in Redis
-    redis_client = await get_redis_client()
-    await _initialize_job(redis_client, job_id, user_id, email_ids, "classify")
+    # Initialize job in memory
+    _initialize_job(job_id, user_id, email_ids, "classify")
 
     # Queue background task
     background_tasks.add_task(
@@ -312,9 +234,8 @@ async def batch_process(
     # Generate job ID
     job_id = f"prc_{uuid.uuid4().hex[:16]}"
 
-    # Initialize job in Redis
-    redis_client = await get_redis_client()
-    await _initialize_job(redis_client, job_id, user_id, email_ids, "process")
+    # Initialize job in memory
+    _initialize_job(job_id, user_id, email_ids, "process")
 
     # Queue background task
     background_tasks.add_task(
@@ -342,13 +263,11 @@ async def batch_process(
 
 async def get_batch_status(
     job_id: str,
-    redis_client: redis.Redis,
 ) -> BatchStatusResponse:
     """Get the current status of a batch job.
 
     Args:
         job_id: The batch job ID
-        redis_client: Redis client
 
     Returns:
         BatchStatusResponse with current job state
@@ -356,24 +275,17 @@ async def get_batch_status(
     Raises:
         HTTPException: 404 if job not found
     """
-    keys = _get_redis_keys(job_id)
-
-    # Fetch all data from Redis
-    status_raw = await redis_client.get(keys["status"])
-    if status_raw is None:
+    job = _batch_jobs.get(job_id)
+    if job is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Batch job {job_id} not found or expired.",
         )
 
-    progress_raw = await redis_client.get(keys["progress"])
-    errors_raw = await redis_client.get(keys["errors"])
-    metadata_raw = await redis_client.get(keys["metadata"])
-
-    job_status = status_raw.decode() if isinstance(status_raw, bytes) else status_raw
-    progress = json.loads(progress_raw) if progress_raw else {}
-    errors = json.loads(errors_raw) if errors_raw else []
-    metadata = json.loads(metadata_raw) if metadata_raw else {}
+    job_status = job["status"]
+    progress = job["progress"]
+    errors = job["errors"]
+    metadata = job["metadata"]
 
     # Parse timestamps
     created_at = datetime.fromisoformat(metadata.get("created_at", datetime.now(UTC).isoformat()))
@@ -409,8 +321,7 @@ async def _background_classify(
         user_id: ID of the user who owns the emails
         email_ids: List of email IDs to classify
     """
-    redis_client = await get_redis_client()
-    await _update_job_status(redis_client, job_id, "processing")
+    _update_job_status(job_id, "processing")
 
     gemini = get_gemini_client()
     processed = 0
@@ -430,17 +341,17 @@ async def _background_classify(
                 email = result.scalar_one_or_none()
 
                 if email is None:
-                    await _add_error(redis_client, job_id, email_id, "Email not found")
+                    _add_error(job_id, email_id, "Email not found")
                     failed += 1
                     processed += 1
-                    await _update_progress(redis_client, job_id, processed, succeeded, failed)
+                    _update_progress(job_id, processed, succeeded, failed)
                     continue
 
                 # Skip already classified emails
                 if email.classification is not None:
                     succeeded += 1
                     processed += 1
-                    await _update_progress(redis_client, job_id, processed, succeeded, failed)
+                    _update_progress(job_id, processed, succeeded, failed)
                     continue
 
                 # Classify using Gemini
@@ -470,18 +381,18 @@ async def _background_classify(
 
                 except Exception as exc:
                     error_msg = f"Classification failed: {exc}"
-                    await _add_error(redis_client, job_id, email_id, error_msg)
+                    _add_error(job_id, email_id, error_msg)
                     failed += 1
                     logger.warning("Classification failed for email %s: %s", email_id, exc)
 
             except Exception as exc:
                 error_msg = f"Unexpected error: {exc}"
-                await _add_error(redis_client, job_id, email_id, error_msg)
+                _add_error(job_id, email_id, error_msg)
                 failed += 1
                 logger.exception("Error processing email %s in batch classify", email_id)
 
             processed += 1
-            await _update_progress(redis_client, job_id, processed, succeeded, failed)
+            _update_progress(job_id, processed, succeeded, failed)
 
         try:
             await db.commit()
@@ -491,7 +402,7 @@ async def _background_classify(
 
     # Mark job as completed or failed
     final_status = "completed" if failed == 0 else "failed" if succeeded == 0 else "completed"
-    await _update_job_status(redis_client, job_id, final_status)
+    _update_job_status(job_id, final_status)
 
     logger.info(
         "Batch classify job completed: job_id=%s processed=%d succeeded=%d failed=%d",
@@ -516,8 +427,7 @@ async def _background_process(
     """
     from app.agent.graph import process_email as agent_process_email
 
-    redis_client = await get_redis_client()
-    await _update_job_status(redis_client, job_id, "processing")
+    _update_job_status(job_id, "processing")
 
     processed = 0
     succeeded = 0
@@ -536,23 +446,22 @@ async def _background_process(
                 email = result.scalar_one_or_none()
 
                 if email is None:
-                    await _add_error(redis_client, job_id, email_id, "Email not found")
+                    _add_error(job_id, email_id, "Email not found")
                     failed += 1
                     processed += 1
-                    await _update_progress(redis_client, job_id, processed, succeeded, failed)
+                    _update_progress(job_id, processed, succeeded, failed)
                     continue
 
                 # Skip if already processing or sent
                 if email.status in {EmailStatus.PROCESSING, EmailStatus.SENT}:
-                    await _add_error(
-                        redis_client,
+                    _add_error(
                         job_id,
                         email_id,
                         f"Email already in '{email.status.value}' state",
                     )
                     failed += 1
                     processed += 1
-                    await _update_progress(redis_client, job_id, processed, succeeded, failed)
+                    _update_progress(job_id, processed, succeeded, failed)
                     continue
 
                 # Set to processing
@@ -567,7 +476,7 @@ async def _background_process(
 
                 except Exception as exc:
                     error_msg = f"Agent pipeline failed: {exc}"
-                    await _add_error(redis_client, job_id, email_id, error_msg)
+                    _add_error(job_id, email_id, error_msg)
                     failed += 1
 
                     # Try to recover status
@@ -586,12 +495,12 @@ async def _background_process(
 
             except Exception as exc:
                 error_msg = f"Unexpected error: {exc}"
-                await _add_error(redis_client, job_id, email_id, error_msg)
+                _add_error(job_id, email_id, error_msg)
                 failed += 1
                 logger.exception("Error processing email %s in batch process", email_id)
 
             processed += 1
-            await _update_progress(redis_client, job_id, processed, succeeded, failed)
+            _update_progress(job_id, processed, succeeded, failed)
 
         try:
             await db.commit()
@@ -607,7 +516,7 @@ async def _background_process(
     else:
         final_status = "completed"  # Partial success still marks as completed
 
-    await _update_job_status(redis_client, job_id, final_status)
+    _update_job_status(job_id, final_status)
 
     logger.info(
         "Batch process job completed: job_id=%s processed=%d succeeded=%d failed=%d",

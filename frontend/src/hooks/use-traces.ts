@@ -1,14 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
-import type { TraceRun, TraceDetail, PaginatedResponse } from "@/types";
+import type { TraceRun, TraceDetail, PaginatedResponse, TraceFilters } from "@/types";
 
-export function useTraces(page: number = 1, pageSize: number = 20) {
+export function useTraces(filters: TraceFilters = {}) {
+  const { search, status, page = 1, page_size = 20 } = filters;
   return useQuery({
-    queryKey: ["traces", page, pageSize],
+    queryKey: ["traces", filters],
     queryFn: () =>
       api
         .get<PaginatedResponse<TraceRun>>("/traces", {
-          params: { limit: pageSize, offset: (page - 1) * pageSize },
+          params: {
+            limit: page_size,
+            offset: (page - 1) * page_size,
+            search: search || undefined,
+            status: status || undefined,
+          },
         })
         .then((r) => r.data),
     staleTime: 0,

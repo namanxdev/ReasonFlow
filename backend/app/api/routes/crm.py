@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from pydantic import EmailStr
 
 from app.core.deps import get_current_user
 from app.integrations.crm.factory import get_crm_client
@@ -36,7 +37,7 @@ async def list_contacts(
     summary="Get contact information by email",
 )
 async def get_contact(
-    email: str,
+    email: EmailStr = Path(..., description="Contact email address"),
     _user: User = Depends(get_current_user),
 ) -> ContactResponse:
     """Look up a CRM contact record by email address."""
@@ -56,8 +57,8 @@ async def get_contact(
     summary="Update contact information",
 )
 async def update_contact(
-    email: str,
     body: ContactUpdateRequest,
+    email: EmailStr = Path(..., description="Contact email address"),
     _user: User = Depends(get_current_user),
 ) -> ContactResponse:
     """Create or update a CRM contact record."""

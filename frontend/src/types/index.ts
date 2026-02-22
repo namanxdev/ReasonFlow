@@ -159,3 +159,21 @@ export interface EmailFilters {
   sort_by?: string;
   sort_order?: "asc" | "desc";
 }
+
+export interface EmailStats {
+  pending: number;
+  processing: number;
+  drafted: number;
+  needs_review: number;
+  approved: number;
+  sent: number;
+  rejected: number;
+  total: number;
+}
+
+export interface TraceFilters {
+  search?: string;
+  status?: "completed" | "failed" | "processing";
+  page?: number;
+  page_size?: number;
+}

@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import logging
 import uuid
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.events import EventType, publish_event
-from app.core.security import decrypt_oauth_token
+from app.core.security import decrypt_oauth_token, encrypt_oauth_token
 from app.integrations.gmail.client import GmailClient
 from app.models.email import Email, EmailStatus
 from app.models.user import User
+from app.services.auth_service import refresh_user_gmail_token
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +218,7 @@ def _build_gmail_client(user: User) -> GmailClient:
             detail="Stored Gmail credentials are invalid. Re-connect your account.",
         ) from exc
 
-    credentials: dict[str, str] = {"access_token": access_token}
+    credentials: dict[str, Any] = {"access_token": access_token}
     if user.oauth_refresh_token_encrypted:
         try:
             credentials["refresh_token"] = decrypt_oauth_token(
@@ -228,4 +230,12 @@ def _build_gmail_client(user: User) -> GmailClient:
                 user.id,
             )
 
-    return GmailClient(credentials)
+    # Define callback to persist refreshed tokens back to user record
+    def on_token_refresh(updated_creds: dict[str, Any]) -> None:
+        """Persist refreshed access token back to user record."""
+        new_token = updated_creds.get("access_token")
+        if new_token:
+            user.oauth_token_encrypted = encrypt_oauth_token(new_token)
+            logger.debug("Persisted refreshed Gmail token for user=%s", user.id)
+
+    return GmailClient(credentials, on_token_refresh=on_token_refresh)

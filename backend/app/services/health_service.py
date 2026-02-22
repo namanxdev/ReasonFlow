@@ -10,7 +10,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.redis import get_redis_client
 
 
 async def check_health(db: AsyncSession) -> dict[str, Any]:
@@ -36,23 +35,6 @@ async def check_health(db: AsyncSession) -> dict[str, Any]:
         }
     except Exception as e:
         checks["database"] = {
-            "status": "error",
-            "error": str(e),
-        }
-        overall_status = "unhealthy"
-
-    # Check Redis
-    try:
-        start_time = time.perf_counter()
-        redis_client = await get_redis_client()
-        await redis_client.ping()
-        redis_latency = (time.perf_counter() - start_time) * 1000
-        checks["redis"] = {
-            "status": "ok",
-            "latency_ms": round(redis_latency, 2),
-        }
-    except Exception as e:
-        checks["redis"] = {
             "status": "error",
             "error": str(e),
         }

@@ -1,18 +1,18 @@
-"""Event publishing and subscription for real-time notifications."""
+"""Event publishing and subscription for real-time notifications.
+
+Uses an in-memory async event bus (asyncio.Queue per subscriber).
+Suitable for single-server MVP deployments. State resets on server restart.
+"""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+from collections import defaultdict
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING
 from uuid import UUID
-
-from app.core.redis import get_redis_client
-
-if TYPE_CHECKING:
-    from redis.asyncio import Redis
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +30,12 @@ class EventType(StrEnum):
     BATCH_COMPLETE = "batch_complete"
 
 
+# In-memory subscriber registry: {user_id: [asyncio.Queue, ...]}
+_subscribers: dict[str, list[asyncio.Queue]] = defaultdict(list)
+
+
 async def publish_event(user_id: UUID, event_type: EventType, data: dict) -> None:
-    """Publish event to Redis pub/sub channel.
+    """Publish event to all in-memory subscribers for a user.
 
     Args:
         user_id: The user ID to publish the event for.
@@ -39,16 +43,21 @@ async def publish_event(user_id: UUID, event_type: EventType, data: dict) -> Non
         data: Event payload data.
     """
     try:
-        redis: Redis = await get_redis_client()
         event = {
             "type": event_type.value,
             "user_id": str(user_id),
             "data": data,
             "timestamp": datetime.now(UTC).isoformat(),
         }
-        channel = f"events:{user_id}"
-        await redis.publish(channel, json.dumps(event))
-        logger.debug("Published event %s to channel %s", event_type.value, channel)
+        channel = str(user_id)
+        queues = _subscribers.get(channel, [])
+        for queue in queues:
+            try:
+                queue.put_nowait(event)
+            except asyncio.QueueFull:
+                logger.warning("Event queue full for user %s, dropping event", user_id)
+        if queues:
+            logger.debug("Published event %s to %d subscribers for user %s", event_type.value, len(queues), user_id)
     except Exception as exc:
         # Log but don't raise - notifications should not break core functionality
         logger.warning("Failed to publish event %s for user %s: %s", event_type.value, user_id, exc)
@@ -61,22 +70,19 @@ async def subscribe_events(user_id: UUID):
         user_id: The user ID to subscribe to events for.
 
     Yields:
-        dict: Parsed event data from Redis pub/sub messages.
+        dict: Parsed event data from the in-memory event bus.
     """
-    redis: Redis = await get_redis_client()
-    pubsub = redis.pubsub()
-    channel = f"events:{user_id}"
-    await pubsub.subscribe(channel)
-    logger.info("Subscribed to events channel: %s", channel)
+    channel = str(user_id)
+    queue: asyncio.Queue = asyncio.Queue(maxsize=100)
+    _subscribers[channel].append(queue)
+    logger.info("Subscribed to events for user: %s", user_id)
 
     try:
-        async for message in pubsub.listen():
-            if message["type"] == "message":
-                try:
-                    event_data = json.loads(message["data"])
-                    yield event_data
-                except json.JSONDecodeError as exc:
-                    logger.warning("Failed to decode event message: %s", exc)
+        while True:
+            event_data = await queue.get()
+            yield event_data
     finally:
-        await pubsub.unsubscribe(channel)
-        logger.info("Unsubscribed from events channel: %s", channel)
+        _subscribers[channel].remove(queue)
+        if not _subscribers[channel]:
+            del _subscribers[channel]
+        logger.info("Unsubscribed from events for user: %s", user_id)

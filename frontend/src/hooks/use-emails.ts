@@ -1,11 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
-import type { Email, EmailFilters, PaginatedResponse } from "@/types";
+import type { Email, EmailFilters, EmailStats, PaginatedResponse } from "@/types";
+
+const POLLING_INTERVAL = 30000; // 30 seconds
 
 export function useEmails(filters: EmailFilters) {
   return useQuery({
-    queryKey: ["emails", filters.page, filters.page_size, filters.status, filters.classification, filters.search, filters.sort_by, filters.sort_order],
-    queryFn: () =>
+    queryKey: ["emails", filters],
+    queryFn: ({ signal }) =>
       api
         .get<PaginatedResponse<Email>>("/emails", {
           params: {
@@ -17,11 +19,15 @@ export function useEmails(filters: EmailFilters) {
             sort_by: filters.sort_by,
             sort_order: filters.sort_order,
           },
+          signal,
         })
         .then((r) => r.data),
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
+    // Real-time updates configuration
+    refetchInterval: POLLING_INTERVAL,
+    refetchIntervalInBackground: false, // Don't poll when tab is hidden
+    refetchOnWindowFocus: true, // Refresh when user returns to tab
     placeholderData: (previousData) => previousData,
   });
 }
@@ -64,5 +70,13 @@ export function useProcessEmail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["emails"] });
     },
+  });
+}
+
+export function useEmailStats() {
+  return useQuery({
+    queryKey: ["emails", "stats"],
+    queryFn: () => api.get<EmailStats>("/emails/stats").then((r) => r.data),
+    refetchInterval: 30000,
   });
 }

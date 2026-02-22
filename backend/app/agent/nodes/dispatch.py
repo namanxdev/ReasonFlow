@@ -7,16 +7,103 @@ import time
 import uuid
 from typing import Any
 
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.state import AgentState
+from app.core.security import decrypt_oauth_token, encrypt_oauth_token
+from app.models.user import User
+from app.services.auth_service import refresh_user_gmail_token
 
 logger = logging.getLogger(__name__)
+
+
+async def check_idempotency(db: AsyncSession, key: str) -> bool:
+    """Check if operation with this key was already processed.
+
+    Uses PostgreSQL INSERT ... ON CONFLICT DO NOTHING to atomically check
+    and set the idempotency key. If the key already exists, the operation
+    is a duplicate.
+
+    Args:
+        db: The async database session.
+        key: The idempotency key to check.
+
+    Returns:
+        True if the operation was already processed (duplicate), False otherwise.
+    """
+    result = await db.execute(
+        text(
+            "INSERT INTO idempotency_keys (key) VALUES (:key) "
+            "ON CONFLICT (key) DO NOTHING "
+            "RETURNING key"
+        ),
+        {"key": key},
+    )
+    row = result.fetchone()
+    # If row is None, the key already existed (duplicate)
+    return row is None
+
+
+async def _get_user_credentials(
+    db: AsyncSession, user_id: uuid.UUID | str
+) -> dict[str, Any] | None:
+    """Fetch and decrypt user OAuth credentials from the database.
+
+    Refreshes the access token if expired before returning credentials.
+    Returns a dict with 'access_token' and optionally 'refresh_token',
+    or None if the user has no OAuth credentials.
+    """
+    if db is None:
+        return None
+
+    try:
+        user_uuid = uuid.UUID(str(user_id)) if not isinstance(user_id, uuid.UUID) else user_id
+        result = await db.execute(select(User).where(User.id == user_uuid))
+        user = result.scalar_one_or_none()
+
+        if user is None or not user.oauth_token_encrypted:
+            return None
+
+        # Refresh token if needed before using
+        await refresh_user_gmail_token(db, user_uuid)
+
+        credentials: dict[str, Any] = {}
+
+        try:
+            credentials["access_token"] = decrypt_oauth_token(user.oauth_token_encrypted)
+        except ValueError as exc:
+            logger.warning("Failed to decrypt access token for user=%s: %s", user_id, exc)
+            return None
+
+        if user.oauth_refresh_token_encrypted:
+            try:
+                credentials["refresh_token"] = decrypt_oauth_token(
+                    user.oauth_refresh_token_encrypted
+                )
+            except ValueError:
+                logger.warning("Failed to decrypt refresh token for user=%s", user_id)
+
+        # Define callback to persist refreshed tokens back to database
+        def on_token_refresh(updated_creds: dict[str, Any]) -> None:
+            """Persist refreshed access token back to user record."""
+            new_token = updated_creds.get("access_token")
+            if new_token:
+                user.oauth_token_encrypted = encrypt_oauth_token(new_token)
+                logger.debug("Persisted refreshed Gmail token for user=%s", user_id)
+
+        credentials["_on_token_refresh"] = on_token_refresh
+
+        return credentials
+    except Exception as exc:
+        logger.warning("Failed to get user credentials for user=%s: %s", user_id, exc)
+        return None
 
 
 async def dispatch_node(
     state: AgentState,
     db: AsyncSession | None = None,
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     """Dispatch the email response based on the review decision.
 
@@ -27,6 +114,10 @@ async def dispatch_node(
     If ``requires_approval`` is True:
       - Creates a Gmail draft via ``create_draft`` tool.
       - Updates the ``Email`` record status to ``needs_review``.
+
+    Idempotency:
+      - If ``idempotency_key`` is provided, checks the database to prevent duplicate sends.
+      - Duplicate requests are detected and skipped without sending email.
 
     Reads:
         ``email``, ``final_response``, ``draft_response``, ``requires_approval``
@@ -53,6 +144,38 @@ async def dispatch_node(
     action_taken: str = ""
     error_msg: str | None = None
 
+    # Check idempotency key to prevent duplicate sends
+    if idempotency_key:
+        try:
+            if db is not None:
+                is_duplicate = await check_idempotency(db, idempotency_key)
+                if is_duplicate:
+                    logger.info(
+                        "dispatch_node: duplicate request detected — idempotency_key=%s",
+                        idempotency_key,
+                    )
+                    latency_ms = (time.monotonic() - step_start) * 1000
+                    current_steps.append(
+                        {
+                            "step": step_name,
+                            "action": "duplicate_skipped",
+                            "requires_approval": requires_approval,
+                            "latency_ms": latency_ms,
+                            "idempotency_key": idempotency_key,
+                        }
+                    )
+                    return {
+                        "steps": current_steps,
+                        "error": None,
+                    }
+        except Exception as exc:
+            logger.warning("dispatch_node: idempotency check failed — %s", exc)
+            # Continue with dispatch even if idempotency check fails
+
+    # Get user credentials for Gmail operations
+    user_id = email.get("user_id")
+    credentials = await _get_user_credentials(db, user_id) if user_id else None
+
     if not requires_approval:
         # ------------------------------------------------------------------
         # Auto-approved: send immediately via Gmail.
@@ -60,7 +183,11 @@ async def dispatch_node(
         try:
             from app.integrations.gmail.client import GmailClient  # type: ignore[import]
 
-            client = GmailClient()
+            if credentials is None:
+                raise RuntimeError("User has no valid Gmail OAuth credentials")
+
+            on_refresh = credentials.pop("_on_token_refresh", None)
+            client = GmailClient(credentials=credentials, on_token_refresh=on_refresh)
             await client.send_email(
                 to=email.get("sender", ""),
                 subject=f"Re: {email.get('subject', '')}",
@@ -95,7 +222,11 @@ async def dispatch_node(
         try:
             from app.integrations.gmail.client import GmailClient  # type: ignore[import]
 
-            client = GmailClient()
+            if credentials is None:
+                raise RuntimeError("User has no valid Gmail OAuth credentials")
+
+            on_refresh = credentials.pop("_on_token_refresh", None)
+            client = GmailClient(credentials=credentials, on_token_refresh=on_refresh)
             await client.create_draft(
                 to=email.get("sender", ""),
                 subject=f"Re: {email.get('subject', '')}",
@@ -120,15 +251,17 @@ async def dispatch_node(
         )
 
     latency_ms = (time.monotonic() - step_start) * 1000
-    current_steps.append(
-        {
-            "step": step_name,
-            "action": action_taken,
-            "requires_approval": requires_approval,
-            "latency_ms": latency_ms,
-            **({"error": error_msg} if error_msg else {}),
-        }
-    )
+    step_entry: dict[str, Any] = {
+        "step": step_name,
+        "action": action_taken,
+        "requires_approval": requires_approval,
+        "latency_ms": latency_ms,
+    }
+    if error_msg:
+        step_entry["error"] = error_msg
+    if idempotency_key:
+        step_entry["idempotency_key"] = idempotency_key
+    current_steps.append(step_entry)
 
     logger.info(
         "dispatch_node: done — action=%s latency_ms=%.1f",

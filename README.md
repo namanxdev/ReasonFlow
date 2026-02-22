@@ -18,7 +18,6 @@ ReasonFlow is a full-stack autonomous inbox agent that:
 | **Backend** | FastAPI, LangGraph, LangChain + Gemini, SQLAlchemy |
 | **Frontend** | Next.js 14 (App Router), shadcn/ui, Zustand, TanStack Query |
 | **Database** | PostgreSQL + pgvector |
-| **Cache** | Redis |
 | **LLM** | Google Gemini API (via langchain-google-genai) |
 
 ## Architecture
@@ -38,8 +37,8 @@ ReasonFlow is a full-stack autonomous inbox agent that:
                                     │
                     ┌───────────────┼───────────────┐
                     │               │               │
-               PostgreSQL        Redis         External
-               + pgvector                      APIs
+               PostgreSQL        External
+               + pgvector        APIs
 ```
 
 ## Agent Workflow
@@ -89,7 +88,7 @@ backend/
 │   │   ├── state/      # Agent state definitions
 │   │   └── tools/      # Tool manager + tool implementations
 │   ├── api/            # FastAPI routes + middleware
-│   ├── core/           # Config, database, redis
+│   ├── core/           # Config, database, security
 │   ├── integrations/   # Gmail, Calendar, CRM clients
 │   ├── llm/            # Gemini client + prompts (via LangChain)
 │   ├── models/         # SQLAlchemy models

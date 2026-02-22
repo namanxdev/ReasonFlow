@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from zoneinfo import available_timezones
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+# Cache available timezones for performance
+_AVAILABLE_TIMEZONES = available_timezones()
 
 
 class UserPreferencesResponse(BaseModel):
@@ -93,3 +97,18 @@ class UserPreferencesUpdateRequest(BaseModel):
         le=1000,
         description="Maximum auto-responses allowed per day (0-1000)",
     )
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, v: str | None) -> str | None:
+        """Validate timezone is a valid IANA timezone identifier.
+        
+        Uses Python 3.9+ zoneinfo module with IANA timezone database.
+        On Windows, requires 'tzdata' package to be installed.
+        """
+        if v is None:
+            return v
+        # Check against cached timezone set (empty on Windows without tzdata)
+        if _AVAILABLE_TIMEZONES and v not in _AVAILABLE_TIMEZONES:
+            raise ValueError(f"Invalid timezone: {v}. Must be a valid IANA timezone.")
+        return v

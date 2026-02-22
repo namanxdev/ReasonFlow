@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -68,7 +69,7 @@ async def test_classify_node_clamps_confidence_out_of_range() -> None:
     """Confidence values outside [0, 1] should be clamped."""
     mock_client = MagicMock()
     mock_client.classify_intent = AsyncMock(
-        return_value=IntentResult(intent="inquiry", confidence=1.5, reasoning="test")
+        return_value=SimpleNamespace(intent="inquiry", confidence=1.5, reasoning="test")
     )
 
     with patch("app.agent.nodes.classify.get_gemini_client", return_value=mock_client):

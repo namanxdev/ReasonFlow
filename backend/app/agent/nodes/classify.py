@@ -8,6 +8,7 @@ from typing import Any
 
 from app.agent.state import AgentState
 from app.llm.client import get_gemini_client
+from app.llm.utils import truncate_text
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ async def classify_node(state: AgentState) -> dict[str, Any]:
 
     email: dict[str, Any] = state.get("email", {})
     subject: str = email.get("subject", "")
-    body: str = email.get("body", "")
+    body: str = truncate_text(email.get("body", ""), max_chars=4000)
     sender: str = email.get("sender", "")
 
     logger.info(

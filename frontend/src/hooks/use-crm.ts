@@ -48,6 +48,10 @@ export function useUpdateContact() {
       queryClient.invalidateQueries({
         queryKey: ["crm", "contact", variables.email],
       });
+      // Invalidate the contacts list so grid updates
+      queryClient.invalidateQueries({
+        queryKey: ["crm", "contacts"],
+      });
     },
   });
 }

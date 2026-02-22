@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useMemo } from "react";
 import { motion } from "framer-motion";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AppShellTopNav } from "@/components/layout/app-shell-top-nav";
 import { OriginalEmail } from "@/components/draft-review/original-email";
@@ -20,22 +21,7 @@ import { toast } from "sonner";
 import type { Email } from "@/types";
 import { cn } from "@/lib/utils";
 import { PageHeader, SectionCard, StaggerContainer, StaggerItem } from "@/components/layout/dashboard-shell";
-
-function getRelativeTime(dateString: string): string {
-  const now = new Date();
-  const date = new Date(dateString);
-  const diffInMs = now.getTime() - date.getTime();
-  const diffInMinutes = Math.floor(diffInMs / 60000);
-  const diffInHours = Math.floor(diffInMinutes / 60);
-  const diffInDays = Math.floor(diffInHours / 24);
-
-  if (diffInMinutes < 1) return "Just now";
-  if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-  if (diffInHours < 24) return `${diffInHours}h ago`;
-  if (diffInDays < 7) return `${diffInDays}d ago`;
-  if (diffInDays < 30) return `${Math.floor(diffInDays / 7)}w ago`;
-  return `${Math.floor(diffInDays / 30)}mo ago`;
-}
+import { getRelativeTime } from "@/lib/date-utils";
 
 function ConfidenceBar({ confidence }: { confidence: number | null }) {
   if (confidence === null) return null;
@@ -69,7 +55,15 @@ function DraftListItem({
 }) {
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
         "p-4 border-b cursor-pointer transition-all hover:bg-blue-50/50",
         isSelected && "bg-blue-50/80 border-l-4 border-l-blue-500"
@@ -96,10 +90,21 @@ function DraftListItem({
   );
 }
 
+function isValidUUID(str: string | null): boolean {
+  if (!str) return false;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
+
 function DraftsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const emailId = searchParams.get("emailId");
+  const reducedMotion = useReducedMotion();
+  const emailIdParam = searchParams.get("emailId");
+  const emailId = useMemo(() =>
+    isValidUUID(emailIdParam) ? emailIdParam : null,
+    [emailIdParam]
+  );
 
   const { data: drafts, isLoading, error } = useDrafts();
   const [isEditing, setIsEditing] = useState(false);
@@ -176,41 +181,69 @@ function DraftsContent() {
 
   if (error) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-center h-[50vh]"
-      >
-        <div className="text-center space-y-3">
-          <div className="w-16 h-16 rounded-2xl bg-red-100 flex items-center justify-center mx-auto">
-            <AlertCircle className="size-8 text-red-500" />
+      reducedMotion ? (
+        <div className="flex items-center justify-center h-[50vh]">
+          <div className="text-center space-y-3">
+            <div className="w-16 h-16 rounded-2xl bg-red-100 flex items-center justify-center mx-auto">
+              <AlertCircle className="size-8 text-red-500" />
+            </div>
+            <h3 className="text-lg font-medium">Error Loading Drafts</h3>
+            <p className="text-sm text-muted-foreground">
+              {error instanceof Error ? error.message : "Unknown error"}
+            </p>
           </div>
-          <h3 className="text-lg font-medium">Error Loading Drafts</h3>
-          <p className="text-sm text-muted-foreground">
-            {error instanceof Error ? error.message : "Unknown error"}
-          </p>
         </div>
-      </motion.div>
+      ) : (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-center h-[50vh]"
+        >
+          <div className="text-center space-y-3">
+            <div className="w-16 h-16 rounded-2xl bg-red-100 flex items-center justify-center mx-auto">
+              <AlertCircle className="size-8 text-red-500" />
+            </div>
+            <h3 className="text-lg font-medium">Error Loading Drafts</h3>
+            <p className="text-sm text-muted-foreground">
+              {error instanceof Error ? error.message : "Unknown error"}
+            </p>
+          </div>
+        </motion.div>
+      )
     );
   }
 
   if (!drafts || drafts.length === 0) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-center h-[50vh]"
-      >
-        <div className="text-center space-y-3">
-          <div className="w-16 h-16 rounded-2xl bg-pink-100 flex items-center justify-center mx-auto">
-            <Mail className="size-8 text-pink-500" />
+      reducedMotion ? (
+        <div className="flex items-center justify-center h-[50vh]">
+          <div className="text-center space-y-3">
+            <div className="w-16 h-16 rounded-2xl bg-pink-100 flex items-center justify-center mx-auto">
+              <Mail className="size-8 text-pink-500" />
+            </div>
+            <h3 className="text-lg font-medium">No Drafts to Review</h3>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              All drafts have been reviewed or there are no pending drafts.
+            </p>
           </div>
-          <h3 className="text-lg font-medium">No Drafts to Review</h3>
-          <p className="text-sm text-muted-foreground max-w-sm">
-            All drafts have been reviewed or there are no pending drafts.
-          </p>
         </div>
-      </motion.div>
+      ) : (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-center h-[50vh]"
+        >
+          <div className="text-center space-y-3">
+            <div className="w-16 h-16 rounded-2xl bg-pink-100 flex items-center justify-center mx-auto">
+              <Mail className="size-8 text-pink-500" />
+            </div>
+            <h3 className="text-lg font-medium">No Drafts to Review</h3>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              All drafts have been reviewed or there are no pending drafts.
+            </p>
+          </div>
+        </motion.div>
+      )
     );
   }
 

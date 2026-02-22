@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 
 const navLinks = [
   { href: "#features", label: "Features" },
@@ -16,6 +17,7 @@ const navLinks = [
 export function LandingNav() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -78,14 +80,9 @@ export function LandingNav() {
       </nav>
 
       {/* Mobile Menu */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden border-t border-border/50 bg-white/95 backdrop-blur-xl"
-          >
+      {reducedMotion ? (
+        mobileMenuOpen && (
+          <div className="md:hidden border-t border-border/50 bg-white/95 backdrop-blur-xl">
             <div className="px-4 py-4 space-y-3">
               {navLinks.map((link) => (
                 <Link
@@ -106,9 +103,41 @@ export function LandingNav() {
                 </Button>
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        )
+      ) : (
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="md:hidden border-t border-border/50 bg-white/95 backdrop-blur-xl"
+            >
+              <div className="px-4 py-4 space-y-3">
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="block py-2 text-sm text-muted-foreground hover:text-foreground"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+                <div className="pt-3 border-t border-border/50 space-y-2">
+                  <Button variant="ghost" className="w-full justify-start" asChild>
+                    <Link href="/login">Sign in</Link>
+                  </Button>
+                  <Button className="w-full" asChild>
+                    <Link href="/register">Get started</Link>
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
     </header>
   );
 }

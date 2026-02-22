@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -30,7 +31,11 @@ logger = logging.getLogger(__name__)
 class GeminiClient:
     """Wrapper around Google Gemini via LangChain for structured LLM calls."""
 
-    def __init__(self) -> None:
+    # Default timeout for LLM calls in seconds
+    DEFAULT_TIMEOUT = 30
+
+    def __init__(self, timeout: int | None = None) -> None:
+        self.timeout = timeout or self.DEFAULT_TIMEOUT
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
             google_api_key=settings.GEMINI_API_KEY,
@@ -47,12 +52,15 @@ class GeminiClient:
         wait=wait_exponential(multiplier=1, min=2, max=10),
     )
     async def _invoke(self, prompt: str) -> str:
-        """Invoke the LLM with retry logic."""
+        """Invoke the LLM with retry logic and timeout."""
         messages = [
             SystemMessage(content="You are a helpful AI assistant. Always respond in valid JSON."),
             HumanMessage(content=prompt),
         ]
-        response = await self.llm.ainvoke(messages)
+        response = await asyncio.wait_for(
+            self.llm.ainvoke(messages),
+            timeout=self.timeout,
+        )
         return str(response.content)
 
     def _parse_json(self, text: str) -> dict[str, Any]:

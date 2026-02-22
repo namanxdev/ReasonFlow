@@ -21,11 +21,6 @@ Returns the current health status of the ReasonFlow application and its dependen
       "latency_ms": 12.34,
       "error": null | "error message"
     },
-    "redis": {
-      "status": "ok" | "error",
-      "latency_ms": 5.67,
-      "error": null | "error message"
-    },
     "gemini_api": {
       "status": "ok" | "not_configured",
       "error": null
@@ -40,14 +35,13 @@ Returns the current health status of the ReasonFlow application and its dependen
 | Status Code | Meaning |
 |-------------|---------|
 | 200 OK | All critical systems are healthy |
-| 503 Service Unavailable | One or more critical systems (DB, Redis) are failing |
+| 503 Service Unavailable | One or more critical systems (DB) are failing |
 
 #### Subsystem Details
 
 | Subsystem | Description | Critical? |
 |-----------|-------------|-----------|
 | `database` | PostgreSQL connectivity via `SELECT 1` | Yes |
-| `redis` | Redis connectivity via `PING` | Yes |
 | `gemini_api` | GEMINI_API_KEY presence check | No |
 
 ## Production Configuration Validation
@@ -84,7 +78,6 @@ interface HealthStatus {
   status: 'healthy' | 'unhealthy';
   checks: {
     database: { status: 'ok' | 'error'; latency_ms?: number };
-    redis: { status: 'ok' | 'error'; latency_ms?: number };
     gemini_api: { status: 'ok' | 'not_configured' };
   };
   timestamp: string;
@@ -100,7 +93,6 @@ interface HealthStatus {
 
 2. **Tooltip/Popover**: On hover, show:
    - Database latency (green if < 100ms, yellow if < 500ms, red otherwise)
-   - Redis latency
    - Gemini API configuration status
 
 3. **Auto-refresh**: Poll `/health` every 30 seconds
@@ -158,6 +150,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 ## Development Notes
 
 - Database latency is measured in milliseconds using `time.perf_counter()` for high precision
-- Redis ping also measures round-trip latency
 - Gemini API check only validates key presence, not actual API connectivity (to avoid API rate limits)
 - All timestamps are returned in ISO 8601 format with UTC timezone

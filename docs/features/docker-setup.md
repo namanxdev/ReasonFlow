@@ -2,22 +2,22 @@
 
 ## Overview
 
-This guide covers the Docker-based deployment setup for the ReasonFlow backend. The Docker configuration provides a containerized environment with all required services (backend API, PostgreSQL database with pgvector, and Redis cache) for consistent and reproducible development and deployment.
+This guide covers the Docker-based deployment setup for the ReasonFlow backend. The Docker configuration provides a containerized environment with all required services (backend API and PostgreSQL database with pgvector) for consistent and reproducible development and deployment.
 
 ## Architecture
 
-The Docker setup consists of three services:
+The Docker setup consists of two services:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Docker Compose Stack                     │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────────┐  ┌──────────────┐   │
-│  │   Backend    │  │   PostgreSQL     │  │    Redis     │   │
-│  │  (FastAPI)   │◄─┤   (pgvector)     │  │   (Cache)    │   │
-│  │   Port: 8000 │  │    Port: 5432    │  │  Port: 6379  │   │
-│  └──────────────┘  └──────────────────┘  └──────────────┘   │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│                Docker Compose Stack               │
+├─────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────────┐   │
+│  │   Backend    │  │   PostgreSQL     │   │
+│  │  (FastAPI)   │◄─┤   (pgvector)     │   │
+│  │   Port: 8000 │  │    Port: 5432    │   │
+│  └──────────────┘  └──────────────────┘   │
+└─────────────────────────────────────────────┘
 ```
 
 ### Services
@@ -26,7 +26,6 @@ The Docker setup consists of three services:
 |---------|-------|---------|------|
 | **backend** | Custom (Python 3.11) | FastAPI application server | 8000 |
 | **db** | pgvector/pgvector:pg16 | PostgreSQL with vector extension | 5432 |
-| **redis** | redis:7-alpine | Caching and session storage | 6379 |
 
 ## Prerequisites
 
@@ -53,7 +52,7 @@ The backend service requires environment variables for configuration. These are 
 cp backend/.env.example backend/.env
 
 # Edit the file with your actual values
-# Note: For Docker, the DATABASE_URL and REDIS_URL are automatically
+# Note: For Docker, the DATABASE_URL is automatically
 # overridden in docker-compose.yml to use Docker service names
 ```
 
@@ -64,9 +63,6 @@ Ensure your `backend/.env` file contains at least these required variables:
 ```bash
 # Database (will be overridden in Docker to use 'db' service)
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/reasonflow
-
-# Redis (will be overridden in Docker to use 'redis' service)
-REDIS_URL=redis://localhost:6379/0
 
 # Google Gemini API (required for AI features)
 GEMINI_API_KEY=your-gemini-api-key-here
@@ -108,8 +104,7 @@ make docker-up
 This command will:
 1. Build the backend Docker image (if not already built or if Dockerfile changed)
 2. Start PostgreSQL and wait for it to be healthy
-3. Start Redis and wait for it to be healthy
-4. Start the backend service
+3. Start the backend service
 
 ### Stop All Services
 
@@ -150,7 +145,6 @@ View logs for a specific service:
 ```bash
 docker compose logs -f backend
 docker compose logs -f db
-docker compose logs -f redis
 ```
 
 ### Database Migrations
@@ -193,12 +187,6 @@ Access the database shell:
 docker compose exec db psql -U postgres -d reasonflow
 ```
 
-Access Redis CLI:
-
-```bash
-docker compose exec redis redis-cli
-```
-
 ## Service Descriptions
 
 ### Backend Service
@@ -217,19 +205,11 @@ docker compose exec redis redis-cli
 - **Healthcheck**: Uses `pg_isready` to verify database availability
 - **Credentials**: Username `postgres`, password `postgres`, database `reasonflow`
 
-### Redis Service
-
-- **Image**: `redis:7-alpine` (lightweight Alpine-based image)
-- **Port**: Exposes 6379 for external access (optional)
-- **Volumes**: Persistent storage in `redisdata` volume
-- **Healthcheck**: Uses `redis-cli ping` to verify connectivity
-
 ## Network Configuration
 
 All services communicate over a custom Docker bridge network named `reasonflow-network`. Service names are used as hostnames:
 
 - Backend connects to database at: `db:5432`
-- Backend connects to Redis at: `redis:6379`
 
 ## Troubleshooting
 
@@ -242,7 +222,6 @@ All services communicate over a custom Docker bridge network named `reasonflow-n
 # Check for port conflicts
 netstat -an | findstr "8000"
 netstat -an | findstr "5432"
-netstat -an | findstr "6379"
 
 # View detailed logs
 docker compose logs
@@ -266,18 +245,6 @@ docker compose exec db pg_isready -U postgres
 
 # Check logs
 docker compose logs db
-```
-
-### Redis Connection Errors
-
-**Issue**: Backend cannot connect to Redis
-
-**Solution**:
-```bash
-# Check Redis health
-docker compose exec redis redis-cli ping
-
-# Should return "PONG"
 ```
 
 ### Migration Failures

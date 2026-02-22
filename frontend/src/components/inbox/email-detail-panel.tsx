@@ -32,6 +32,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 
 const STATUS_ICON_MAP = {
   Circle,
@@ -139,6 +140,7 @@ export function EmailDetailPanel({
 }: EmailDetailPanelProps) {
   const { data: email, isLoading, refetch } = useEmail(emailId || "");
   const processEmailMutation = useProcessEmail();
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     if (email?.status !== "processing") return;
@@ -166,6 +168,179 @@ export function EmailDetailPanel({
   };
 
   if (!emailId) return null;
+
+  // Render without animations if reduced motion is preferred
+  if (reducedMotion) {
+    return (
+      <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+        <SheetContent className="w-full sm:max-w-lg p-0 border-l border-border/50 bg-background overflow-hidden">
+          <SheetTitle className="sr-only">
+            {isLoading ? "Loading email" : email ? email.subject : "Email not found"}
+          </SheetTitle>
+          {isLoading ? (
+            <div className="h-full flex flex-col">
+              <div className="p-6 space-y-6">
+                <div className="space-y-3">
+                  <div className="h-8 w-3/4 bg-muted rounded-lg animate-pulse" />
+                  <div className="h-4 w-1/2 bg-muted rounded animate-pulse" />
+                </div>
+                <div className="space-y-3">
+                  <div className="h-24 bg-muted rounded-xl animate-pulse" />
+                  <div className="h-48 bg-muted rounded-xl animate-pulse" />
+                </div>
+              </div>
+            </div>
+          ) : email ? (
+            <div className="flex flex-col h-full">
+              {/* Header */}
+              <div className="flex-shrink-0 px-6 py-5 border-b border-border/50 bg-muted/30">
+                <SheetHeader className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center ring-1 ring-primary/20">
+                      <Mail className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0 pt-0.5">
+                      <div className="text-base font-semibold tracking-tight line-clamp-2">
+                        {email.subject}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Meta Info */}
+                  <div className="flex flex-col gap-2 text-sm">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <User className="w-3.5 h-3.5" />
+                      <span className="truncate">{email.sender}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>{formatDate(email.received_at)}</span>
+                      <span className="text-muted-foreground/60">•</span>
+                      <span className="text-muted-foreground/60">{formatDateRelative(email.received_at)}</span>
+                    </div>
+                  </div>
+                </SheetHeader>
+              </div>
+
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto">
+                <div className="p-6 space-y-5">
+                  {/* AI Analysis Section */}
+                  <AnimatedBorderCard>
+                    <div className="p-4 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+                          <Sparkles className="w-3.5 h-3.5 text-white" />
+                        </div>
+                        <span className="text-sm font-semibold">AI Analysis</span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <span className="text-xs text-muted-foreground uppercase tracking-wider">Classification</span>
+                          <ClassificationBadge classification={email.classification} size="md" />
+                          {email.confidence !== null && (
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full"
+                                  style={{ width: `${Math.round(email.confidence * 100)}%` }}
+                                />
+                              </div>
+                              <span className="text-xs font-medium tabular-nums">
+                                {Math.round(email.confidence * 100)}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          <span className="text-xs text-muted-foreground uppercase tracking-wider">Status</span>
+                          <StatusBadge status={email.status} />
+                        </div>
+                      </div>
+                    </div>
+                  </AnimatedBorderCard>
+
+                  {/* Email Body */}
+                  <SpotlightCard className="bg-card" spotlightColor="rgba(99, 102, 241, 0.08)">
+                    <div className="p-4 space-y-3">
+                      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                        <FileText className="w-4 h-4" />
+                        Content
+                      </div>
+                      <div className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap font-mono">
+                        {email.body}
+                      </div>
+                    </div>
+                  </SpotlightCard>
+                </div>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="flex-shrink-0 px-6 py-4 border-t border-border/50 bg-muted/30">
+                <div className="space-y-2">
+                  <span className="text-xs text-muted-foreground uppercase tracking-wider">Actions</span>
+                  <div className="flex flex-col gap-2">
+                    {email.status === "needs_review" && (
+                      <Button 
+                        asChild 
+                        className="w-full h-10 bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
+                      >
+                        <Link href={`/drafts?emailId=${email.id}`}>
+                          <FileText className="w-4 h-4 mr-2" />
+                          View Draft
+                          <ArrowRight className="w-4 h-4 ml-auto opacity-50" />
+                        </Link>
+                      </Button>
+                    )}
+
+                    {email.status === "pending" && (
+                      <Button
+                        className="w-full h-10 bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
+                        onClick={handleProcessEmail}
+                        disabled={processEmailMutation.isPending}
+                      >
+                        {processEmailMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Zap className="w-4 h-4 mr-2" />
+                        )}
+                        Process with Agent
+                      </Button>
+                    )}
+
+                    {email.status !== "pending" && (
+                      <Button 
+                        asChild 
+                        variant="outline"
+                        className="w-full h-10"
+                      >
+                        <Link href="/traces">
+                          <Activity className="w-4 h-4 mr-2" />
+                          View Trace
+                          <ArrowRight className="w-4 h-4 ml-auto opacity-50" />
+                        </Link>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center space-y-3">
+                <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto">
+                  <Mail className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <p className="text-muted-foreground">Email not found</p>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+    );
+  }
 
   return (
     <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>

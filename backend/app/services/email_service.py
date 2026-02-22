@@ -10,13 +10,14 @@ from typing import Any
 
 import httpx
 from fastapi import HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.events import EventType, publish_event
-from app.core.security import decrypt_oauth_token
+from app.core.security import decrypt_oauth_token, encrypt_oauth_token
 from app.integrations.gmail.client import GmailClient
 from app.llm.client import get_gemini_client
+from app.services.auth_service import refresh_user_gmail_token
 from app.models.agent_log import AgentLog
 from app.models.email import Email, EmailClassification, EmailStatus
 from app.models.user import User
@@ -52,8 +53,8 @@ async def list_emails(
             )
         )
 
-    # Count total before pagination.
-    count_query = select(Email).where(Email.user_id == user_id)
+    # Count total before pagination using SQL-level COUNT.
+    count_query = select(func.count()).select_from(Email).where(Email.user_id == user_id)
     if filters.status is not None:
         count_query = count_query.where(Email.status == filters.status)
     if filters.classification is not None:
@@ -68,7 +69,7 @@ async def list_emails(
         )
 
     count_result = await db.execute(count_query)
-    total = len(count_result.scalars().all())
+    total = count_result.scalar()
 
     # Dynamic sorting
     allowed_sort_fields = {
@@ -126,6 +127,9 @@ async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
             detail="Gmail account not connected. Complete OAuth flow first.",
         )
 
+    # Refresh token if needed before using
+    await refresh_user_gmail_token(db, user.id)
+
     try:
         access_token = decrypt_oauth_token(user.oauth_token_encrypted)
     except ValueError as exc:
@@ -134,7 +138,7 @@ async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
             detail="Stored Gmail credentials are invalid. Re-connect your account.",
         ) from exc
 
-    credentials: dict[str, str] = {"access_token": access_token}
+    credentials: dict[str, Any] = {"access_token": access_token}
     if user.oauth_refresh_token_encrypted:
         try:
             credentials["refresh_token"] = decrypt_oauth_token(
@@ -146,7 +150,16 @@ async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
                 user.id,
             )
 
-    gmail_client = GmailClient(credentials)
+    # Define callback to persist refreshed tokens to database
+    def on_token_refresh(updated_creds: dict[str, Any]) -> None:
+        """Persist refreshed access token back to user record."""
+        new_token = updated_creds.get("access_token")
+        if new_token:
+            user.oauth_token_encrypted = encrypt_oauth_token(new_token)
+            # Note: db.flush() will be called after sync completes
+            logger.debug("Persisted refreshed Gmail token for user=%s", user.id)
+
+    gmail_client = GmailClient(credentials, on_token_refresh=on_token_refresh)
 
     try:
         raw_emails = await gmail_client.fetch_emails()
@@ -168,6 +181,13 @@ async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
             detail="Network error while contacting Gmail.",
         ) from exc
 
+    # Batch fetch all existing gmail_ids in ONE query to avoid N+1 problem
+    gmail_ids = [raw.get("gmail_id") for raw in raw_emails if raw.get("gmail_id")]
+    existing_result = await db.execute(
+        select(Email.gmail_id).where(Email.gmail_id.in_(gmail_ids))
+    )
+    existing_ids = set(existing_result.scalars().all())
+
     created = 0
     for raw in raw_emails:
         gmail_id: str = raw.get("gmail_id", "")
@@ -175,10 +195,7 @@ async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
             continue
 
         # Deduplicate by gmail_id.
-        existing_result = await db.execute(
-            select(Email).where(Email.gmail_id == gmail_id)
-        )
-        if existing_result.scalars().first() is not None:
+        if gmail_id in existing_ids:
             continue
 
         received_at_raw = raw.get("received_at")

@@ -20,7 +20,7 @@ from tests.services.conftest import make_email, make_user
 def _scalars_all(items: list):
     scalars_mock = MagicMock()
     scalars_mock.all.return_value = items
-    result_mock = AsyncMock()
+    result_mock = MagicMock()
     result_mock.scalars.return_value = scalars_mock
     return result_mock
 
@@ -28,8 +28,15 @@ def _scalars_all(items: list):
 def _scalars_first(item):
     scalars_mock = MagicMock()
     scalars_mock.first.return_value = item
-    result_mock = AsyncMock()
+    result_mock = MagicMock()
     result_mock.scalars.return_value = scalars_mock
+    return result_mock
+
+
+def _scalar(value):
+    """Mock for queries that use result.scalar() (e.g. COUNT)."""
+    result_mock = MagicMock()
+    result_mock.scalar.return_value = value
     return result_mock
 
 
@@ -46,10 +53,10 @@ async def test_list_emails_returns_items_and_total(mock_db):
     user_id = uuid.uuid4()
     emails = [make_email(user_id=user_id), make_email(user_id=user_id)]
 
-    # First execute call = count query, second = paginated query.
+    # First execute call = count query (scalar), second = paginated query.
     mock_db.execute = AsyncMock(
         side_effect=[
-            _scalars_all(emails),  # count
+            _scalar(2),           # count
             _scalars_all(emails),  # paginated page
         ]
     )
@@ -70,7 +77,7 @@ async def test_list_emails_applies_status_filter(mock_db):
     email = make_email(user_id=user_id, status=EmailStatus.DRAFTED)
     mock_db.execute = AsyncMock(
         side_effect=[
-            _scalars_all([email]),
+            _scalar(1),
             _scalars_all([email]),
         ]
     )
@@ -89,7 +96,7 @@ async def test_list_emails_empty_result(mock_db):
 
     mock_db.execute = AsyncMock(
         side_effect=[
-            _scalars_all([]),
+            _scalar(0),
             _scalars_all([]),
         ]
     )
@@ -173,10 +180,11 @@ async def test_sync_emails_creates_new_email_records(mock_db):
         }
     ]
 
-    # First execute = existing check (returns None = not a duplicate).
-    mock_db.execute = AsyncMock(return_value=_scalars_first(None))
+    # Batch dedup query returns no existing gmail_ids.
+    mock_db.execute = AsyncMock(return_value=_scalars_all([]))
 
     with (
+        patch("app.services.email_service.refresh_user_gmail_token", AsyncMock(return_value=False)),
         patch("app.services.email_service.decrypt_oauth_token", return_value="plain_token"),
         patch(
             "app.services.email_service.GmailClient.fetch_emails",
@@ -207,9 +215,11 @@ async def test_sync_emails_skips_duplicates(mock_db):
         }
     ]
 
-    mock_db.execute = AsyncMock(return_value=_scalars_first(existing_email))
+    # Batch dedup query returns the existing gmail_id.
+    mock_db.execute = AsyncMock(return_value=_scalars_all(["gid-1"]))
 
     with (
+        patch("app.services.email_service.refresh_user_gmail_token", AsyncMock(return_value=False)),
         patch("app.services.email_service.decrypt_oauth_token", return_value="plain_token"),
         patch(
             "app.services.email_service.GmailClient.fetch_emails",
@@ -239,6 +249,7 @@ async def test_sync_emails_raises_502_on_gmail_error(mock_db):
     fake_response.text = "Unauthorized"
 
     with (
+        patch("app.services.email_service.refresh_user_gmail_token", AsyncMock(return_value=False)),
         patch("app.services.email_service.decrypt_oauth_token", return_value="plain_token"),
         patch(
             "app.services.email_service.GmailClient.fetch_emails",

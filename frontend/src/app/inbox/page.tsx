@@ -13,12 +13,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useEmails, useSyncEmails, useClassifyEmails } from "@/hooks/use-emails";
+import { useEmails, useSyncEmails, useClassifyEmails, useEmailStats } from "@/hooks/use-emails";
+import { useQueryClient } from "@tanstack/react-query";
 import type { EmailFilters, EmailClassification, EmailStatus } from "@/types";
 import { RefreshCw, Search, ChevronLeft, ChevronRight, Sparkles, Loader2, Inbox, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, SectionCard, StaggerContainer, StaggerItem } from "@/components/layout/dashboard-shell";
 import { motion } from "framer-motion";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 
 const CLASSIFICATIONS: EmailClassification[] = [
   "inquiry",
@@ -47,15 +49,21 @@ export default function InboxPage() {
     sort_order: "desc",
   });
   const [searchInput, setSearchInput] = useState("");
+  const reducedMotion = useReducedMotion();
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
 
+  const queryClient = useQueryClient();
+
   const { data, isLoading, isFetching } = useEmails(filters);
+  const { data: stats } = useEmailStats();
   const syncMutation = useSyncEmails();
   const classifyMutation = useClassifyEmails();
 
   useEffect(() => {
     const timer = setTimeout(() => {
+      // Cancel any in-flight queries for this key before triggering new search
+      queryClient.cancelQueries({ queryKey: ["emails"] });
       setFilters((prev) => ({
         ...prev,
         search: searchInput || undefined,
@@ -64,7 +72,7 @@ export default function InboxPage() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchInput]);
+  }, [searchInput, queryClient]);
 
   const handleSync = () => {
     syncMutation.mutate(undefined, {
@@ -173,9 +181,10 @@ export default function InboxPage() {
     }
   }, [data, currentPage]);
 
-  // Calculate stats
-  const pendingCount = emails.filter(e => e.status === "pending").length;
-  const needsReviewCount = emails.filter(e => e.status === "needs_review").length;
+  // Use stats from dedicated endpoint (full dataset, not just current page)
+  const pendingCount = stats?.pending ?? 0;
+  const needsReviewCount = stats?.needs_review ?? 0;
+  const processedCount = stats?.sent ?? 0;
 
   return (
     <AppShellTopNav>
@@ -259,7 +268,7 @@ export default function InboxPage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Processed</p>
-                    <p className="text-lg font-semibold">{emails.filter(e => e.status === "sent").length}</p>
+                    <p className="text-lg font-semibold">{processedCount}</p>
                   </div>
                 </div>
               </div>
@@ -342,11 +351,61 @@ export default function InboxPage() {
           {/* Pagination - always show when there's data */}
           {data && data.total > 0 && (
             <StaggerItem>
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex items-center justify-between bg-white/50 rounded-xl p-3"
-              >
+              {reducedMotion ? (
+                <div className="flex items-center justify-between bg-white/50 rounded-xl p-3">
+                  <div className="flex items-center gap-4">
+                    <p className="text-sm text-muted-foreground">
+                      Showing {(currentPage - 1) * (filters.page_size || 25) + 1} to{" "}
+                      {Math.min(currentPage * (filters.page_size || 25), data.total)}{" "}
+                      of {data.total} emails
+                    </p>
+                    <Select
+                      value={String(filters.page_size || 25)}
+                      onValueChange={handlePageSizeChange}
+                    >
+                      <SelectTrigger className="w-28 h-9 bg-white/70">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10 per page</SelectItem>
+                        <SelectItem value="25">25 per page</SelectItem>
+                        <SelectItem value="50">50 per page</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-muted-foreground">
+                      Page <span className="font-medium text-foreground">{currentPage}</span> of {totalPages}
+                    </p>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="outline"
+                        size="icon-sm"
+                        onClick={handlePreviousPage}
+                        disabled={currentPage <= 1 || isFetching}
+                        className="bg-white/70 hover:bg-white"
+                      >
+                        <ChevronLeft className="size-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon-sm"
+                        onClick={handleNextPage}
+                        disabled={currentPage >= totalPages || isFetching}
+                        className="bg-white/70 hover:bg-white"
+                      >
+                        <ChevronRight className="size-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex items-center justify-between bg-white/50 rounded-xl p-3"
+                >
                 <div className="flex items-center gap-4">
                   <p className="text-sm text-muted-foreground">
                     Showing {(currentPage - 1) * (filters.page_size || 25) + 1} to{" "}
@@ -393,7 +452,8 @@ export default function InboxPage() {
                     </Button>
                   </div>
                 </div>
-              </motion.div>
+                </motion.div>
+              )}
             </StaggerItem>
           )}
         </StaggerContainer>

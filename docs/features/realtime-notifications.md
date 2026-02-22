@@ -5,7 +5,7 @@ ReasonFlow provides real-time notifications via WebSocket for email events, draf
 ## Overview
 
 The notification system uses:
-- **Redis Pub/Sub** for event broadcasting
+- **In-memory event bus** (asyncio.Queue) for event broadcasting
 - **FastAPI WebSocket** endpoint for client connections
 - **JWT Authentication** via first message protocol
 
@@ -428,25 +428,17 @@ await publish_event(
 )
 ```
 
-### Redis Channel Format
+### Event Bus Routing
 
-Each user has their own channel:
-```
-events:{user_id}
-```
-
-Example:
-```
-events:123e4567-e89b-12d3-a456-426614174000
-```
+Each user has their own in-memory queue managed by the event bus. Events are routed by `user_id` to the appropriate WebSocket connections. No external broker is required — all pub/sub happens in-process via `asyncio.Queue`.
 
 ## Performance Considerations
 
 1. **Connection Limits**: WebSocket connections are held per user. Consider connection pooling for high-traffic scenarios.
 
-2. **Redis Memory**: Pub/Sub channels are lightweight but monitor Redis memory usage with many concurrent users.
+2. **Memory Usage**: In-memory event queues are lightweight but memory usage scales with number of concurrent users and pending events.
 
-3. **Event Size**: Keep event payloads minimal. Large payloads increase bandwidth and Redis memory usage.
+3. **Event Size**: Keep event payloads minimal. Large payloads increase bandwidth and memory usage.
 
 4. **Reconnection Storm**: Implement jitter in reconnection logic to prevent thundering herd on server restart.
 
@@ -456,7 +448,7 @@ events:123e4567-e89b-12d3-a456-426614174000
 
 2. **Authorization**: Users only receive events for their own `user_id`.
 
-3. **Channel Isolation**: Redis channels are user-specific; no cross-user event leakage.
+3. **Queue Isolation**: In-memory queues are user-specific; no cross-user event leakage.
 
 4. **Token Expiry**: Expired tokens are rejected; clients must reconnect with fresh token.
 

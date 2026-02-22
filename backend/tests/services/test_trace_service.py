@@ -19,7 +19,7 @@ from tests.services.conftest import make_agent_log, make_email, make_tool_execut
 def _scalars_first(item):
     scalars_mock = MagicMock()
     scalars_mock.first.return_value = item
-    result_mock = AsyncMock()
+    result_mock = MagicMock()
     result_mock.scalars.return_value = scalars_mock
     return result_mock
 
@@ -27,7 +27,7 @@ def _scalars_first(item):
 def _scalars_all(items):
     scalars_mock = MagicMock()
     scalars_mock.all.return_value = items
-    result_mock = AsyncMock()
+    result_mock = MagicMock()
     result_mock.scalars.return_value = scalars_mock
     return result_mock
 
@@ -44,9 +44,10 @@ async def test_list_traces_returns_empty_when_no_emails(mock_db):
 
     mock_db.execute = AsyncMock(return_value=_scalars_all([]))
 
-    result = await list_traces(mock_db, uuid.uuid4())
+    traces, total = await list_traces(mock_db, uuid.uuid4())
 
-    assert result == []
+    assert traces == []
+    assert total == 0
 
 
 @pytest.mark.asyncio
@@ -75,10 +76,10 @@ async def test_list_traces_aggregates_steps_by_trace(mock_db):
         ]
     )
 
-    result = await list_traces(mock_db, user_id)
+    traces, total = await list_traces(mock_db, user_id)
 
-    assert len(result) == 1
-    trace = result[0]
+    assert len(traces) == 1
+    trace = traces[0]
     assert trace["trace_id"] == trace_id
     assert trace["total_latency_ms"] == 300.0
     assert trace["step_count"] == 2
@@ -108,9 +109,9 @@ async def test_list_traces_marks_failed_on_error_step(mock_db):
         ]
     )
 
-    result = await list_traces(mock_db, user_id)
+    traces, total = await list_traces(mock_db, user_id)
 
-    assert result[0]["status"] == "failed"
+    assert traces[0]["status"] == "failed"
 
 
 @pytest.mark.asyncio
@@ -119,22 +120,25 @@ async def test_list_traces_respects_limit_and_offset(mock_db):
     from app.services.trace_service import list_traces
 
     user_id = uuid.uuid4()
-    email = make_email(user_id=user_id)
 
-    # Create 5 distinct traces.
+    # Create 5 distinct emails and traces — one trace per email.
+    emails = [make_email(user_id=user_id, gmail_id=f"gmail-{i}") for i in range(5)]
     trace_ids = [uuid.uuid4() for _ in range(5)]
-    logs = [make_agent_log(email_id=email.id, trace_id=tid) for tid in trace_ids]
+    logs = [
+        make_agent_log(email_id=emails[i].id, trace_id=trace_ids[i])
+        for i in range(5)
+    ]
 
     mock_db.execute = AsyncMock(
         side_effect=[
-            _scalars_all([email]),
+            _scalars_all(emails),
             _scalars_all(logs),
         ]
     )
 
-    result = await list_traces(mock_db, user_id, limit=2, offset=0)
+    traces, total = await list_traces(mock_db, user_id, limit=2, offset=0)
 
-    assert len(result) == 2
+    assert len(traces) == 2
 
 
 # ---------------------------------------------------------------------------

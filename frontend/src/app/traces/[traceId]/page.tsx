@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { AppShellTopNav } from "@/components/layout/app-shell-top-nav";
 import { TraceGraph } from "@/components/trace-viewer/trace-graph";
 import { StepDetail } from "@/components/trace-viewer/step-detail";
@@ -54,6 +55,7 @@ export default function TraceDetailPage({
   const { traceId } = use(params);
   const { data, isLoading } = useTraceDetail(traceId);
   const [selectedStep, setSelectedStep] = useState<AgentLog | null>(null);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     if (!data?.steps?.length) {
@@ -99,25 +101,43 @@ export default function TraceDetailPage({
   if (!data) {
     return (
       <AppShellTopNav>
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-center justify-center py-16 text-center"
-        >
-          <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-            <AlertCircle className="size-8 text-slate-500" />
+        {reducedMotion ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+              <AlertCircle className="size-8 text-slate-500" />
+            </div>
+            <h3 className="text-lg font-medium mb-2">Trace not found</h3>
+            <p className="text-muted-foreground text-sm mb-4">
+              The trace you are looking for does not exist.
+            </p>
+            <Button asChild variant="default" className="bg-gradient-to-r from-violet-600 to-purple-600">
+              <Link href="/traces">
+                <ArrowLeft className="mr-2 size-4" />
+                Back to Traces
+              </Link>
+            </Button>
           </div>
-          <h3 className="text-lg font-medium mb-2">Trace not found</h3>
-          <p className="text-muted-foreground text-sm mb-4">
-            The trace you are looking for does not exist.
-          </p>
-          <Button asChild variant="default" className="bg-gradient-to-r from-violet-600 to-purple-600">
-            <Link href="/traces">
-              <ArrowLeft className="mr-2 size-4" />
-              Back to Traces
-            </Link>
-          </Button>
-        </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center justify-center py-16 text-center"
+          >
+            <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+              <AlertCircle className="size-8 text-slate-500" />
+            </div>
+            <h3 className="text-lg font-medium mb-2">Trace not found</h3>
+            <p className="text-muted-foreground text-sm mb-4">
+              The trace you are looking for does not exist.
+            </p>
+            <Button asChild variant="default" className="bg-gradient-to-r from-violet-600 to-purple-600">
+              <Link href="/traces">
+                <ArrowLeft className="mr-2 size-4" />
+                Back to Traces
+              </Link>
+            </Button>
+          </motion.div>
+        )}
       </AppShellTopNav>
     );
   }
@@ -198,24 +218,41 @@ export default function TraceDetailPage({
 
         {activeStep && (
           <StaggerItem>
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              key={activeStep.id ?? activeStep.step_name}
-            >
-              <SectionCard>
-                <div className="p-5 border-b bg-gradient-to-r from-blue-50/50 to-violet-50/50">
-                  <div className="flex items-center gap-2">
-                    <Workflow className="w-4 h-4 text-blue-500" />
-                    <span className="text-sm font-medium">Step Details</span>
-                    <span className="text-xs text-slate-400 ml-2">({activeStep.step_name})</span>
+            {reducedMotion ? (
+              <div key={activeStep.id ?? activeStep.step_name}>
+                <SectionCard>
+                  <div className="p-5 border-b bg-gradient-to-r from-blue-50/50 to-violet-50/50">
+                    <div className="flex items-center gap-2">
+                      <Workflow className="w-4 h-4 text-blue-500" />
+                      <span className="text-sm font-medium">Step Details</span>
+                      <span className="text-xs text-slate-400 ml-2">({activeStep.step_name})</span>
+                    </div>
                   </div>
-                </div>
-                <div className="p-5">
-                  <StepDetail step={activeStep} />
-                </div>
-              </SectionCard>
-            </motion.div>
+                  <div className="p-5">
+                    <StepDetail step={activeStep} />
+                  </div>
+                </SectionCard>
+              </div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                key={activeStep.id ?? activeStep.step_name}
+              >
+                <SectionCard>
+                  <div className="p-5 border-b bg-gradient-to-r from-blue-50/50 to-violet-50/50">
+                    <div className="flex items-center gap-2">
+                      <Workflow className="w-4 h-4 text-blue-500" />
+                      <span className="text-sm font-medium">Step Details</span>
+                      <span className="text-xs text-slate-400 ml-2">({activeStep.step_name})</span>
+                    </div>
+                  </div>
+                  <div className="p-5">
+                    <StepDetail step={activeStep} />
+                  </div>
+                </SectionCard>
+              </motion.div>
+            )}
           </StaggerItem>
         )}
 

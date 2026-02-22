@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, Depends, status
-from redis.asyncio import Redis
+import uuid
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.core.redis import get_redis
+from app.models.email import Email
 from app.models.user import User
 from app.schemas.batch import (
     BatchClassifyRequest,
@@ -19,6 +21,37 @@ from app.schemas.batch import (
 from app.services import batch_service
 
 router = APIRouter()
+
+
+async def _verify_email_ownership(
+    db: AsyncSession, email_ids: list[str], user_id: uuid.UUID
+) -> None:
+    """Verify all email IDs belong to the user.
+
+    Args:
+        db: Database session
+        email_ids: List of email IDs to verify
+        user_id: ID of the user who should own all emails
+
+    Raises:
+        HTTPException: 403 if any email does not belong to the user
+    """
+    if not email_ids:
+        return
+
+    result = await db.execute(
+        select(Email.id).where(
+            Email.id.in_([uuid.UUID(eid) for eid in email_ids]),
+            Email.user_id == user_id,
+        )
+    )
+    owned_ids = {str(r) for r in result.scalars().all()}
+
+    if len(owned_ids) != len(email_ids):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="One or more emails do not belong to the current user",
+        )
 
 
 @router.post(
@@ -44,6 +77,7 @@ async def batch_classify_emails(
     The classification runs in the background. Use the returned job_id
     with the /status/{job_id} endpoint to track progress.
     """
+    await _verify_email_ownership(db, request.email_ids, current_user.id)
     return await batch_service.batch_classify(
         db=db,
         user_id=current_user.id,
@@ -78,6 +112,7 @@ async def batch_process_emails(
     The processing runs in the background. Use the returned job_id
     with the /status/{job_id} endpoint to track progress.
     """
+    await _verify_email_ownership(db, request.email_ids, current_user.id)
     return await batch_service.batch_process(
         db=db,
         user=current_user,
@@ -102,7 +137,6 @@ async def batch_process_emails(
 )
 async def get_batch_job_status(
     job_id: str,
-    redis: Redis = Depends(get_redis),
     current_user: User = Depends(get_current_user),
 ) -> BatchStatusResponse:
     """Get the current status of a batch job.
@@ -110,4 +144,4 @@ async def get_batch_job_status(
     Poll this endpoint to track progress of batch operations.
     Recommended polling interval: 2-3 seconds.
     """
-    return await batch_service.get_batch_status(job_id, redis_client=redis)
+    return await batch_service.get_batch_status(job_id)

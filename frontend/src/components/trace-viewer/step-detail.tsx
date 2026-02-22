@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import {
   Collapsible,
   CollapsibleContent,
@@ -42,7 +43,7 @@ function JsonViewer({ data, label }: { data: Record<string, unknown> | null; lab
   );
 }
 
-function ToolExecutionRow({ tool, index }: { tool: ToolExecution; index: number }) {
+function ToolExecutionRow({ tool, index, reducedMotion }: { tool: ToolExecution; index: number; reducedMotion: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -67,26 +68,45 @@ function ToolExecutionRow({ tool, index }: { tool: ToolExecution; index: number 
       </button>
 
       {isOpen && (
-        <motion.div
-          initial={{ height: 0, opacity: 0 }}
-          animate={{ height: "auto", opacity: 1 }}
-          className="p-3 space-y-3"
-        >
-          <div>
-            <p className="text-xs font-medium text-slate-500 mb-1">Parameters</p>
-            <JsonViewer data={tool.params} />
+        reducedMotion ? (
+          <div className="p-3 space-y-3">
+            <div>
+              <p className="text-xs font-medium text-slate-500 mb-1">Parameters</p>
+              <JsonViewer data={tool.params} />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-slate-500 mb-1">Result</p>
+              {tool.error_message ? (
+                <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-sm text-red-600">
+                  {tool.error_message}
+                </div>
+              ) : (
+                <JsonViewer data={tool.result} />
+              )}
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-medium text-slate-500 mb-1">Result</p>
-            {tool.error_message ? (
-              <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-sm text-red-600">
-                {tool.error_message}
-              </div>
-            ) : (
-              <JsonViewer data={tool.result} />
-            )}
-          </div>
-        </motion.div>
+        ) : (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            className="p-3 space-y-3"
+          >
+            <div>
+              <p className="text-xs font-medium text-slate-500 mb-1">Parameters</p>
+              <JsonViewer data={tool.params} />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-slate-500 mb-1">Result</p>
+              {tool.error_message ? (
+                <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-sm text-red-600">
+                  {tool.error_message}
+                </div>
+              ) : (
+                <JsonViewer data={tool.result} />
+              )}
+            </div>
+          </motion.div>
+        )
       )}
     </div>
   );
@@ -95,6 +115,7 @@ function ToolExecutionRow({ tool, index }: { tool: ToolExecution; index: number 
 export function StepDetail({ step }: StepDetailProps) {
   const [inputOpen, setInputOpen] = useState(true);
   const [outputOpen, setOutputOpen] = useState(true);
+  const reducedMotion = useReducedMotion();
 
   const hasToolExecutions = step.tool_executions && step.tool_executions.length > 0;
 
@@ -132,19 +153,31 @@ export function StepDetail({ step }: StepDetailProps) {
 
       {/* Error Message */}
       {step.error_message && (
-        <motion.div 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-red-50 border border-red-200 rounded-xl p-4"
-        >
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="size-5 text-red-500 flex-shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <h3 className="font-medium text-red-900">Error Occurred</h3>
-              <p className="text-sm text-red-700">{step.error_message}</p>
+        reducedMotion ? (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="size-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h3 className="font-medium text-red-900">Error Occurred</h3>
+                <p className="text-sm text-red-700">{step.error_message}</p>
+              </div>
             </div>
           </div>
-        </motion.div>
+        ) : (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-red-50 border border-red-200 rounded-xl p-4"
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="size-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h3 className="font-medium text-red-900">Error Occurred</h3>
+                <p className="text-sm text-red-700">{step.error_message}</p>
+              </div>
+            </div>
+          </motion.div>
+        )
       )}
 
       {/* Input/Output States */}
@@ -201,7 +234,7 @@ export function StepDetail({ step }: StepDetailProps) {
           </h3>
           <div className="space-y-2">
             {step.tool_executions.map((tool, index) => (
-              <ToolExecutionRow key={tool.id} tool={tool} index={index} />
+              <ToolExecutionRow key={tool.id} tool={tool} index={index} reducedMotion={reducedMotion} />
             ))}
           </div>
         </div>

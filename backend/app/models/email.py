@@ -6,7 +6,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -39,6 +39,11 @@ class Email(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     __tablename__ = "emails"
 
+    # Composite index for common query pattern: user_id + status + received_at
+    __table_args__ = (
+        Index('ix_emails_user_status_received', 'user_id', 'status', 'received_at'),
+    )
+
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
     )
@@ -49,17 +54,19 @@ class Email(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     sender: Mapped[str] = mapped_column(String(320), nullable=False)
     recipient: Mapped[str | None] = mapped_column(String(320), nullable=True)
     received_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
+        DateTime(timezone=True), nullable=False, index=True
     )
     classification: Mapped[EmailClassification | None] = mapped_column(
         Enum(EmailClassification, values_callable=lambda obj: [e.value for e in obj]),
         nullable=True,
+        index=True,
     )
     confidence: Mapped[float | None] = mapped_column(nullable=True)
     status: Mapped[EmailStatus] = mapped_column(
         Enum(EmailStatus, values_callable=lambda obj: [e.value for e in obj]),
         default=EmailStatus.PENDING,
         nullable=False,
+        index=True,
     )
     draft_response: Mapped[str | None] = mapped_column(Text, nullable=True)
 

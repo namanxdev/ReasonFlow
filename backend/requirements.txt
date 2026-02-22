@@ -22,9 +22,6 @@ asyncpg>=0.29.0
 alembic>=1.13.0
 pgvector>=0.2.4
 
-# Cache / Rate limiting
-redis>=5.0.0
-
 # HTTP client
 httpx>=0.25.0
 
@@ -38,3 +35,6 @@ cryptography>=41.0.0
 
 # Email validation
 email-validator>=2.1.0
+
+# HTML sanitization
+bleach>=6.0.0

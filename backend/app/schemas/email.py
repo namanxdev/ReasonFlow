@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models.email import EmailClassification, EmailStatus
 from app.schemas.common import PaginatedResponse
@@ -70,6 +70,25 @@ class EmailFilterParams(BaseModel):
     sort_order: str | None = Field(default="desc", description="Sort order: asc or desc")
 
 
+class EmailCreate(BaseModel):
+    """Schema for creating/saving emails."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    subject: str = Field(max_length=998, description="Email subject line (RFC 2822 limit)")  # RFC 2822 limit
+    body: str = Field(description="Full email body content")  # Validated below
+    sender: str = Field(max_length=320, description="Sender email address (RFC 5321 limit)")  # RFC 5321 limit
+
+    @field_validator("body")
+    @classmethod
+    def validate_body_size(cls, v: str) -> str:
+        """Validate email body does not exceed maximum size to prevent LLM token overflow."""
+        max_body_size = 50000  # ~50KB limit
+        if len(v) > max_body_size:
+            raise ValueError(f"Email body exceeds maximum size of {max_body_size} characters")
+        return v
+
+
 class EmailProcessRequest(BaseModel):
     """Request body for POST /emails/{id}/process.
 
@@ -87,3 +106,18 @@ class EmailProcessResponse(BaseModel):
 
     trace_id: uuid.UUID = Field(description="Identifier for the new agent trace")
     status: str = Field(default="processing", description="Initial processing status")
+
+
+class EmailStatsResponse(BaseModel):
+    """Response body for GET /emails/stats — email counts by status."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    pending: int = Field(default=0, description="Count of pending emails")
+    processing: int = Field(default=0, description="Count of processing emails")
+    drafted: int = Field(default=0, description="Count of drafted emails")
+    needs_review: int = Field(default=0, description="Count of emails needing review")
+    approved: int = Field(default=0, description="Count of approved emails")
+    sent: int = Field(default=0, description="Count of sent emails")
+    rejected: int = Field(default=0, description="Count of rejected emails")
+    total: int = Field(default=0, description="Total count of all emails")

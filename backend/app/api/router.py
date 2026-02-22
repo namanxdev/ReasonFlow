@@ -1,7 +1,8 @@
 """Central API router aggregating all sub-routers."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.api.middleware.rate_limit import rate_limit
 from app.api.routes import (
     auth,
     batch,
@@ -16,7 +17,7 @@ from app.api.routes import (
     traces,
 )
 
-api_router = APIRouter()
+api_router = APIRouter(dependencies=[Depends(rate_limit)])
 
 
 @api_router.get("/status", tags=["status"])

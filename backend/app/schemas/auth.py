@@ -34,6 +34,10 @@ class TokenResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     access_token: str = Field(description="Signed JWT access token")
+    refresh_token: str | None = Field(
+        default=None,
+        description="Signed JWT refresh token (omitted on refresh responses)",
+    )
     token_type: str = Field(default="bearer", description="Token scheme (always 'bearer')")
     expires_in: int | None = Field(
         default=None,
@@ -100,4 +104,24 @@ class GmailCallbackResponse(BaseModel):
     token_type: str | None = Field(
         default=None,
         description="Token scheme, 'bearer' when access_token is present",
+    )
+
+
+class ForgotPasswordRequest(BaseModel):
+    """Request body for POST /auth/forgot-password."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr = Field(description="Account email address")
+
+
+class ResetPasswordRequest(BaseModel):
+    """Request body for POST /auth/reset-password."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(description="Password reset token from email")
+    new_password: str = Field(
+        min_length=8,
+        description="New account password (minimum 8 characters)",
     )
