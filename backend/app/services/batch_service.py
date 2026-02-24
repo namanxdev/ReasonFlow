@@ -6,6 +6,7 @@ Suitable for single-server MVP deployments. State resets on server restart.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
@@ -16,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import async_session_factory
+from app.core.task_tracker import get_task_tracker
 from app.llm.client import get_gemini_client
 from app.models.email import Email, EmailClassification, EmailStatus
 from app.models.user import User
@@ -147,13 +149,12 @@ async def batch_classify(
     # Initialize job in memory
     _initialize_job(job_id, user_id, email_ids, "classify")
 
-    # Queue background task
-    background_tasks.add_task(
-        _background_classify,
-        job_id,
-        user_id,
-        email_ids,
+    # Queue background task with tracking for graceful shutdown
+    async_task = asyncio.create_task(
+        _background_classify(job_id, user_id, email_ids)
     )
+    async_task.set_name(f"batch_classify_{job_id}")
+    get_task_tracker().add_task(async_task)
 
     logger.info(
         "Batch classify job queued: job_id=%s user_id=%s count=%d",
@@ -237,13 +238,12 @@ async def batch_process(
     # Initialize job in memory
     _initialize_job(job_id, user_id, email_ids, "process")
 
-    # Queue background task
-    background_tasks.add_task(
-        _background_process,
-        job_id,
-        user_id,
-        email_ids,
+    # Queue background task with tracking for graceful shutdown
+    async_task = asyncio.create_task(
+        _background_process(job_id, user_id, email_ids)
     )
+    async_task.set_name(f"batch_process_{job_id}")
+    get_task_tracker().add_task(async_task)
 
     logger.info(
         "Batch process job queued: job_id=%s user_id=%s count=%d",

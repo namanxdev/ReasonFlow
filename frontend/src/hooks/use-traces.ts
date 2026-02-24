@@ -19,6 +19,7 @@ export function useTraces(filters: TraceFilters = {}) {
         .then((r) => r.data),
     staleTime: 0,
     refetchOnWindowFocus: false,
+    placeholderData: (previousData) => previousData,
   });
 }
 

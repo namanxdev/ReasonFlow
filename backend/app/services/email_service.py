@@ -112,20 +112,13 @@ async def get_email(
     return email
 
 
-async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
-    """Fetch new emails from Gmail and persist them, deduplicating by gmail_id.
+async def _sync_emails_core(db: AsyncSession, user: User) -> dict[str, int]:
+    """Core email sync logic. Raises ValueError/RuntimeError instead of HTTPException.
 
-    Returns a dict with ``fetched`` (total from Gmail) and ``created`` (new records
-    inserted) counts.
-
-    Raises HTTP 400 if the user has not connected their Gmail account.
-    Raises HTTP 502 on Gmail API errors.
+    Used by both the HTTP endpoint wrapper and the background scheduler.
     """
     if not user.oauth_token_encrypted:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Gmail account not connected. Complete OAuth flow first.",
-        )
+        raise ValueError("Gmail account not connected. Complete OAuth flow first.")
 
     # Refresh token if needed before using
     await refresh_user_gmail_token(db, user.id)
@@ -133,10 +126,7 @@ async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
     try:
         access_token = decrypt_oauth_token(user.oauth_token_encrypted)
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Stored Gmail credentials are invalid. Re-connect your account.",
-        ) from exc
+        raise ValueError("Stored Gmail credentials are invalid. Re-connect your account.") from exc
 
     credentials: dict[str, Any] = {"access_token": access_token}
     if user.oauth_refresh_token_encrypted:
@@ -152,11 +142,9 @@ async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
 
     # Define callback to persist refreshed tokens to database
     def on_token_refresh(updated_creds: dict[str, Any]) -> None:
-        """Persist refreshed access token back to user record."""
         new_token = updated_creds.get("access_token")
         if new_token:
             user.oauth_token_encrypted = encrypt_oauth_token(new_token)
-            # Note: db.flush() will be called after sync completes
             logger.debug("Persisted refreshed Gmail token for user=%s", user.id)
 
     gmail_client = GmailClient(credentials, on_token_refresh=on_token_refresh)
@@ -170,18 +158,12 @@ async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
             exc.response.status_code,
             exc.response.text,
         )
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Failed to fetch emails from Gmail.",
-        ) from exc
+        raise RuntimeError("Failed to fetch emails from Gmail.") from exc
     except httpx.RequestError as exc:
         logger.error("Network error fetching Gmail emails for user=%s: %s", user.id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Network error while contacting Gmail.",
-        ) from exc
+        raise RuntimeError("Network error while contacting Gmail.") from exc
 
-    # Batch fetch all existing gmail_ids in ONE query to avoid N+1 problem
+    # Batch fetch all existing gmail_ids in ONE query
     gmail_ids = [raw.get("gmail_id") for raw in raw_emails if raw.get("gmail_id")]
     existing_result = await db.execute(
         select(Email.gmail_id).where(Email.gmail_id.in_(gmail_ids))
@@ -193,8 +175,6 @@ async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
         gmail_id: str = raw.get("gmail_id", "")
         if not gmail_id:
             continue
-
-        # Deduplicate by gmail_id.
         if gmail_id in existing_ids:
             continue
 
@@ -223,7 +203,6 @@ async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
         db.add(email)
         created += 1
 
-        # Publish event for new email
         await publish_event(
             user_id=user.id,
             event_type=EventType.EMAIL_RECEIVED,
@@ -236,11 +215,11 @@ async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
 
     await db.flush()
 
-    # Auto-populate CRM contacts from unique senders
+    # Auto-populate CRM contacts
     try:
         from app.integrations.crm.factory import get_crm_client
 
-        crm = get_crm_client()
+        crm = get_crm_client(db=db, user_id=user.id)
         seen_senders: set[str] = set()
         for raw in raw_emails:
             sender = raw.get("sender", "")
@@ -275,6 +254,25 @@ async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
         created,
     )
     return {"fetched": len(raw_emails), "created": created}
+
+
+async def sync_emails(db: AsyncSession, user: User) -> dict[str, int]:
+    """Fetch new emails from Gmail - HTTP endpoint wrapper.
+
+    Catches ValueError/RuntimeError from core logic and re-raises as HTTPException.
+    """
+    try:
+        return await _sync_emails_core(db, user)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
 
 
 async def classify_unclassified_emails(db: AsyncSession, user_id: uuid.UUID) -> dict[str, int]:

@@ -30,3 +30,6 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     preferences: Mapped[UserPreferences] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan", uselist=False
     )
+    contacts: Mapped[list[Contact]] = relationship(  # noqa: F821
+        back_populates="user", cascade="all, delete-orphan"
+    )

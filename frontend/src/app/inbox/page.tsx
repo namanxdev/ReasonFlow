@@ -13,14 +13,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useEmails, useSyncEmails, useClassifyEmails, useEmailStats } from "@/hooks/use-emails";
+import { Pagination } from "@/components/ui/pagination";
+import { useEmails, useSyncEmails, useClassifyEmails, useEmailStats, useSyncStatus } from "@/hooks/use-emails";
+import { useWebSocket } from "@/hooks/use-websocket";
 import { useQueryClient } from "@tanstack/react-query";
 import type { EmailFilters, EmailClassification, EmailStatus } from "@/types";
-import { RefreshCw, Search, ChevronLeft, ChevronRight, Sparkles, Loader2, Inbox, Mail } from "lucide-react";
+import { RefreshCw, Search, Sparkles, Loader2, Inbox, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, SectionCard, StaggerContainer, StaggerItem } from "@/components/layout/dashboard-shell";
-import { motion } from "framer-motion";
-import { useReducedMotion } from "@/hooks/use-reduced-motion";
 
 const CLASSIFICATIONS: EmailClassification[] = [
   "inquiry",
@@ -49,7 +49,6 @@ export default function InboxPage() {
     sort_order: "desc",
   });
   const [searchInput, setSearchInput] = useState("");
-  const reducedMotion = useReducedMotion();
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
 
@@ -59,6 +58,25 @@ export default function InboxPage() {
   const { data: stats } = useEmailStats();
   const syncMutation = useSyncEmails();
   const classifyMutation = useClassifyEmails();
+
+  const { data: syncStatus } = useSyncStatus();
+
+  // WebSocket for real-time updates
+  useWebSocket({
+    url: `${process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000"}/api/v1/ws`,
+    onMessage: useCallback(
+      (data: any) => {
+        if (
+          data.type === "email_received" ||
+          data.type === "email_classified" ||
+          data.type === "email_sync_complete"
+        ) {
+          queryClient.invalidateQueries({ queryKey: ["emails"] });
+        }
+      },
+      [queryClient]
+    ),
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -140,30 +158,6 @@ export default function InboxPage() {
     }));
   };
 
-  const handlePageSizeChange = (value: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      page_size: parseInt(value),
-      page: 1,
-    }));
-  };
-
-  const handlePreviousPage = () => {
-    setFilters((prev) => ({
-      ...prev,
-      page: Math.max(1, (prev.page || 1) - 1),
-    }));
-  };
-
-  const handleNextPage = () => {
-    if (!data) return;
-    const maxPage = Math.ceil(data.total / data.per_page) || 1;
-    setFilters((prev) => ({
-      ...prev,
-      page: Math.min(maxPage, (prev.page || 1) + 1),
-    }));
-  };
-
   const currentPage = filters.page || 1;
   const totalPages = data ? Math.ceil(data.total / data.per_page) || 1 : 1;
   const emails = data?.items || [];
@@ -199,6 +193,15 @@ export default function InboxPage() {
               subtitle="Manage and process your incoming emails"
               action={
                 <>
+                  {syncStatus?.auto_sync_active && (
+                    <div className="flex items-center gap-2 text-sm text-green-600 mr-2">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+                      </span>
+                      Auto-sync active
+                    </div>
+                  )}
                   <Button
                     onClick={handleClassify}
                     disabled={classifyMutation.isPending}
@@ -351,109 +354,20 @@ export default function InboxPage() {
           {/* Pagination - always show when there's data */}
           {data && data.total > 0 && (
             <StaggerItem>
-              {reducedMotion ? (
-                <div className="flex items-center justify-between bg-white/50 rounded-xl p-3">
-                  <div className="flex items-center gap-4">
-                    <p className="text-sm text-muted-foreground">
-                      Showing {(currentPage - 1) * (filters.page_size || 25) + 1} to{" "}
-                      {Math.min(currentPage * (filters.page_size || 25), data.total)}{" "}
-                      of {data.total} emails
-                    </p>
-                    <Select
-                      value={String(filters.page_size || 25)}
-                      onValueChange={handlePageSizeChange}
-                    >
-                      <SelectTrigger className="w-28 h-9 bg-white/70">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="10">10 per page</SelectItem>
-                        <SelectItem value="25">25 per page</SelectItem>
-                        <SelectItem value="50">50 per page</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm text-muted-foreground">
-                      Page <span className="font-medium text-foreground">{currentPage}</span> of {totalPages}
-                    </p>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="outline"
-                        size="icon-sm"
-                        onClick={handlePreviousPage}
-                        disabled={currentPage <= 1 || isFetching}
-                        className="bg-white/70 hover:bg-white"
-                      >
-                        <ChevronLeft className="size-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon-sm"
-                        onClick={handleNextPage}
-                        disabled={currentPage >= totalPages || isFetching}
-                        className="bg-white/70 hover:bg-white"
-                      >
-                        <ChevronRight className="size-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex items-center justify-between bg-white/50 rounded-xl p-3"
-                >
-                <div className="flex items-center gap-4">
-                  <p className="text-sm text-muted-foreground">
-                    Showing {(currentPage - 1) * (filters.page_size || 25) + 1} to{" "}
-                    {Math.min(currentPage * (filters.page_size || 25), data.total)}{" "}
-                    of {data.total} emails
-                  </p>
-                  <Select
-                    value={String(filters.page_size || 25)}
-                    onValueChange={handlePageSizeChange}
-                  >
-                    <SelectTrigger className="w-28 h-9 bg-white/70">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">10 per page</SelectItem>
-                      <SelectItem value="25">25 per page</SelectItem>
-                      <SelectItem value="50">50 per page</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <p className="text-sm text-muted-foreground">
-                    Page <span className="font-medium text-foreground">{currentPage}</span> of {totalPages}
-                  </p>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="outline"
-                      size="icon-sm"
-                      onClick={handlePreviousPage}
-                      disabled={currentPage <= 1 || isFetching}
-                      className="bg-white/70 hover:bg-white"
-                    >
-                      <ChevronLeft className="size-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon-sm"
-                      onClick={handleNextPage}
-                      disabled={currentPage >= totalPages || isFetching}
-                      className="bg-white/70 hover:bg-white"
-                    >
-                      <ChevronRight className="size-4" />
-                    </Button>
-                  </div>
-                </div>
-                </motion.div>
-              )}
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={data.total}
+                pageSize={filters.page_size || 25}
+                isFetching={isFetching}
+                itemLabel="emails"
+                onPageChange={(page) =>
+                  setFilters((prev) => ({ ...prev, page }))
+                }
+                onPageSizeChange={(size) =>
+                  setFilters((prev) => ({ ...prev, page_size: size, page: 1 }))
+                }
+              />
             </StaggerItem>
           )}
         </StaggerContainer>

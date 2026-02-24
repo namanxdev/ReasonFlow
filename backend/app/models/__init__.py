@@ -2,6 +2,7 @@
 
 from app.models.agent_log import AgentLog
 from app.models.base import Base
+from app.models.contact import Contact
 from app.models.email import Email, EmailClassification, EmailStatus
 from app.models.email_template import EmailTemplate
 from app.models.embedding import Embedding
@@ -22,4 +23,5 @@ __all__ = [
     "ToolExecution",
     "Embedding",
     "EmailTemplate",
+    "Contact",
 ]

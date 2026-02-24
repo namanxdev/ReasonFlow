@@ -36,6 +36,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import api from "@/lib/api";
+import { useAuthStore } from "@/stores";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -69,6 +70,8 @@ export default function LoginPage() {
     return Object.keys(errors).length === 0;
   };
 
+  const login = useAuthStore((state) => state.login);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -88,10 +91,12 @@ export default function LoginPage() {
       const { access_token, refresh_token } = response.data;
 
       if (access_token) {
-        localStorage.setItem("rf_access_token", access_token);
-        if (refresh_token) {
-          localStorage.setItem("rf_refresh_token", refresh_token);
-        }
+        // Use centralized auth store instead of localStorage directly
+        login(
+          { id: "", email }, // User ID will be populated from profile API if available
+          access_token,
+          refresh_token || ""
+        );
         router.push("/inbox");
       } else {
         setError("Login failed. No access token received.");

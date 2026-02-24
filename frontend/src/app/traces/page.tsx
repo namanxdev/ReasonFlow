@@ -1,11 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { AppShellTopNav } from "@/components/layout/app-shell-top-nav";
 import { TraceList } from "@/components/trace-viewer/trace-list";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -14,8 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Pagination } from "@/components/ui/pagination";
 import { useTraces } from "@/hooks/use-traces";
-import { ChevronLeft, ChevronRight, Activity, Workflow, Loader2, Search } from "lucide-react";
+import { Activity, Workflow, Loader2, Search } from "lucide-react";
 import { PageHeader, SectionCard, StaggerContainer, StaggerItem } from "@/components/layout/dashboard-shell";
 import type { TraceFilters } from "@/types";
 import { useQueryClient } from "@tanstack/react-query";
@@ -31,8 +29,6 @@ export default function TracesPage() {
     page: 1,
     page_size: 25,
   });
-  const reducedMotion = useReducedMotion();
-
   // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -55,28 +51,6 @@ export default function TracesPage() {
   const total = data?.total || 0;
   const page = filters.page || 1;
   const pageSize = filters.page_size || 25;
-
-  const handlePreviousPage = () => {
-    setFilters((prev) => ({
-      ...prev,
-      page: Math.max(1, (prev.page || 1) - 1),
-    }));
-  };
-
-  const handleNextPage = () => {
-    setFilters((prev) => ({
-      ...prev,
-      page: Math.min(totalPages, (prev.page || 1) + 1),
-    }));
-  };
-
-  const handlePageSizeChange = (value: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      page_size: parseInt(value),
-      page: 1,
-    }));
-  };
 
   const handleStatusChange = (value: string) => {
     setFilters((prev) => ({
@@ -160,101 +134,20 @@ export default function TracesPage() {
         {/* Pagination - always show when there's data */}
         {data && data.total > 0 && (
           <StaggerItem>
-            {reducedMotion ? (
-              <div className="flex items-center justify-between bg-white/50 rounded-xl p-3">
-                <div className="flex items-center gap-4">
-                  <p className="text-sm text-muted-foreground">
-                    Showing {(page - 1) * pageSize + 1} to{" "}
-                    {Math.min(page * pageSize, total)} of {total} traces
-                  </p>
-                  <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
-                    <SelectTrigger className="w-28 h-9 bg-white/70">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">10 per page</SelectItem>
-                      <SelectItem value="25">25 per page</SelectItem>
-                      <SelectItem value="50">50 per page</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <p className="text-sm text-muted-foreground">
-                    Page <span className="font-medium text-foreground">{page}</span> of {totalPages}
-                  </p>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="outline"
-                      size="icon-sm"
-                      onClick={handlePreviousPage}
-                      disabled={page <= 1 || isFetching}
-                      className="bg-white/70"
-                    >
-                      <ChevronLeft className="size-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon-sm"
-                      onClick={handleNextPage}
-                      disabled={page >= totalPages || isFetching}
-                      className="bg-white/70"
-                    >
-                      <ChevronRight className="size-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex items-center justify-between bg-white/50 rounded-xl p-3"
-              >
-              <div className="flex items-center gap-4">
-                <p className="text-sm text-muted-foreground">
-                  Showing {(page - 1) * pageSize + 1} to{" "}
-                  {Math.min(page * pageSize, total)} of {total} traces
-                </p>
-                <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
-                  <SelectTrigger className="w-28 h-9 bg-white/70">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10 per page</SelectItem>
-                    <SelectItem value="25">25 per page</SelectItem>
-                    <SelectItem value="50">50 per page</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <p className="text-sm text-muted-foreground">
-                  Page <span className="font-medium text-foreground">{page}</span> of {totalPages}
-                </p>
-                <div className="flex gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon-sm"
-                    onClick={handlePreviousPage}
-                    disabled={page <= 1 || isFetching}
-                    className="bg-white/70"
-                  >
-                    <ChevronLeft className="size-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon-sm"
-                    onClick={handleNextPage}
-                    disabled={page >= totalPages || isFetching}
-                    className="bg-white/70"
-                  >
-                    <ChevronRight className="size-4" />
-                  </Button>
-                </div>
-              </div>
-              </motion.div>
-            )}
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              totalItems={total}
+              pageSize={pageSize}
+              isFetching={isFetching}
+              itemLabel="traces"
+              onPageChange={(p) =>
+                setFilters((prev) => ({ ...prev, page: p }))
+              }
+              onPageSizeChange={(size) =>
+                setFilters((prev) => ({ ...prev, page_size: size, page: 1 }))
+              }
+            />
           </StaggerItem>
         )}
       </StaggerContainer>

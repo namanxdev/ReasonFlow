@@ -80,3 +80,14 @@ export function useEmailStats() {
     refetchInterval: 30000,
   });
 }
+
+export function useSyncStatus() {
+  return useQuery({
+    queryKey: ["emails", "sync-status"],
+    queryFn: () =>
+      api
+        .get<{ auto_sync_active: boolean; gmail_connected: boolean }>("/emails/sync/status")
+        .then((r) => r.data),
+    refetchInterval: 60000,
+  });
+}

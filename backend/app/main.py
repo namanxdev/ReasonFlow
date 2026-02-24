@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -11,13 +12,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.api.middleware.csrf import CSRFMiddleware
 from app.api.middleware.idempotency import IdempotencyMiddleware
 from app.api.middleware.request_id import RequestIdMiddleware
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.logging import setup_logging
+from app.core.task_tracker import TaskTracker, get_task_tracker
 from app.schemas.health import HealthResponse
 from app.services import health_service
+
+logger = logging.getLogger(__name__)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -62,10 +67,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler for startup/shutdown."""
     # Startup
     setup_logging()
+    
+    # Initialize task tracker for graceful shutdown
+    tracker = get_task_tracker()
+    app.state.task_tracker = tracker
+    
     if settings.is_production:
         _validate_production_config()
+
+    from app.services.scheduler import start_scheduler
+    start_scheduler()
+
+    logger.info("Application startup complete")
     yield
-    # Shutdown
+
+    # Shutdown - wait for background tasks to complete
+    from app.services.scheduler import stop_scheduler
+    await stop_scheduler()
+    logger.info("Application shutdown initiated, waiting for background tasks...")
+    tracker.request_shutdown()
+    completed = await tracker.wait_for_completion(timeout=30.0)
+    if not completed:
+        logger.warning("Some background tasks did not complete gracefully")
+    logger.info("Application shutdown complete")
 
 
 def create_app() -> FastAPI:
@@ -81,6 +105,9 @@ def create_app() -> FastAPI:
 
     # Request ID middleware (added first to capture ID for all subsequent middleware)
     app.add_middleware(RequestIdMiddleware)
+
+    # CSRF protection middleware (before auth, after request ID)
+    app.add_middleware(CSRFMiddleware)
 
     # Security headers middleware (added before CORS)
     app.add_middleware(SecurityHeadersMiddleware)

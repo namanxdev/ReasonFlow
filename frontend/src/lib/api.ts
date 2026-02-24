@@ -1,5 +1,7 @@
 import axios from "axios";
 import { toast } from "sonner";
+import { useAuthStore } from "@/stores";
+import { getCSRFHeaders, requiresCSRF } from "./csrf";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -34,7 +36,7 @@ function isTokenExpiringSoon(token: string, bufferSeconds: number = TOKEN_EXPIRY
  * @returns Promise that resolves when refresh is complete
  */
 async function refreshToken(): Promise<void> {
-  const refreshTokenValue = localStorage.getItem("rf_refresh_token");
+  const refreshTokenValue = useAuthStore.getState().refreshToken;
   if (!refreshTokenValue) {
     throw new Error("No refresh token available");
   }
@@ -51,33 +53,48 @@ async function refreshToken(): Promise<void> {
   );
 
   const { access_token } = response.data;
-  localStorage.setItem("rf_access_token", access_token);
+  useAuthStore.getState().updateAccessToken(access_token);
+}
+
+/**
+ * Logout the user and redirect to login page
+ */
+function handleLogout(reason: string = "session_expired"): void {
+  useAuthStore.getState().logout();
+  toast.error("Your session has expired. Please log in again.");
+  setTimeout(() => {
+    window.location.href = `/login?reason=${reason}`;
+  }, 100);
 }
 
 // Request interceptor — attach JWT token and proactively refresh if expiring soon
+// Also adds CSRF token for state-changing requests
 api.interceptors.request.use(
   async (config) => {
     if (typeof window !== "undefined") {
-      const token = localStorage.getItem("rf_access_token");
-      if (token && isTokenExpiringSoon(token, TOKEN_EXPIRY_BUFFER_SECONDS)) {
+      const { accessToken } = useAuthStore.getState();
+      
+      // Add auth token
+      if (accessToken && isTokenExpiringSoon(accessToken, TOKEN_EXPIRY_BUFFER_SECONDS)) {
         // Trigger refresh before the request
         try {
           await refreshToken();
-          const newToken = localStorage.getItem("rf_access_token");
+          const newToken = useAuthStore.getState().accessToken;
           if (newToken) {
             config.headers.Authorization = `Bearer ${newToken}`;
           }
         } catch {
-          // Refresh failed - show toast, clear tokens, and redirect to login
-          toast.error("Your session has expired. Please log in again.");
-          localStorage.removeItem("rf_access_token");
-          localStorage.removeItem("rf_refresh_token");
-          setTimeout(() => {
-            window.location.href = "/login?reason=session_expired";
-          }, 100);
+          // Refresh failed - logout and redirect
+          handleLogout("session_expired");
         }
-      } else if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+      } else if (accessToken) {
+        config.headers.Authorization = `Bearer ${accessToken}`;
+      }
+      
+      // Add CSRF token for state-changing requests
+      if (config.method && requiresCSRF(config.method)) {
+        const csrfHeaders = getCSRFHeaders();
+        Object.assign(config.headers, csrfHeaders);
       }
     }
     return config;
@@ -119,8 +136,8 @@ api.interceptors.response.use(
         isRefreshing = true;
 
         try {
-          const refreshToken = localStorage.getItem("rf_refresh_token");
-          if (!refreshToken) {
+          const refreshTokenValue = useAuthStore.getState().refreshToken;
+          if (!refreshTokenValue) {
             throw new Error("No refresh token available");
           }
 
@@ -129,14 +146,14 @@ api.interceptors.response.use(
             {},
             {
               headers: {
-                Authorization: `Bearer ${refreshToken}`,
+                Authorization: `Bearer ${refreshTokenValue}`,
                 "Content-Type": "application/json",
               },
             }
           );
 
           const { access_token } = response.data;
-          localStorage.setItem("rf_access_token", access_token);
+          useAuthStore.getState().updateAccessToken(access_token);
           isRefreshing = false;
           onTokenRefreshed(access_token);
 
@@ -145,12 +162,7 @@ api.interceptors.response.use(
         } catch {
           isRefreshing = false;
           refreshSubscribers = [];
-          toast.error("Your session has expired. Please log in again.");
-          localStorage.removeItem("rf_access_token");
-          localStorage.removeItem("rf_refresh_token");
-          setTimeout(() => {
-            window.location.href = "/login?reason=session_expired";
-          }, 100);
+          handleLogout("session_expired");
           return Promise.reject(error);
         }
       } else {
@@ -166,12 +178,7 @@ api.interceptors.response.use(
 
     // Non-401 or already retried — reject
     if (error.response?.status === 401 && typeof window !== "undefined") {
-      toast.error("Your session has expired. Please log in again.");
-      localStorage.removeItem("rf_access_token");
-      localStorage.removeItem("rf_refresh_token");
-      setTimeout(() => {
-        window.location.href = "/login?reason=session_expired";
-      }, 100);
+      handleLogout("session_expired");
     }
     return Promise.reject(error);
   }

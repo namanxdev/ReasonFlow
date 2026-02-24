@@ -3,32 +3,63 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
-from pydantic import EmailStr
+from pydantic import BaseModel, EmailStr
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.integrations.crm.factory import get_crm_client
+from app.integrations.crm.db_crm import DatabaseCRM
 from app.models.user import User
 from app.schemas.crm import ContactResponse, ContactUpdateRequest
 
 router = APIRouter()
 
 
+class PaginatedContactsResponse(BaseModel):
+    items: list[ContactResponse]
+    total: int
+    page: int
+    per_page: int
+
+
+class ContactEmailResponse(BaseModel):
+    id: str
+    subject: str | None = None
+    sender: str | None = None
+    recipient: str | None = None
+    received_at: str | None = None
+    classification: str | None = None
+    status: str | None = None
+
+
 @router.get(
     "/contacts",
-    response_model=list[ContactResponse],
-    summary="List all contacts or search",
+    response_model=PaginatedContactsResponse,
+    summary="List contacts with pagination",
 )
 async def list_contacts(
     q: str | None = Query(None, description="Search query"),
-    _user: User = Depends(get_current_user),
-) -> list[ContactResponse]:
-    """List all CRM contacts, optionally filtered by a search query."""
-    client = get_crm_client()
-    if q:
-        results = await client.search_contacts(q)
+    page: int = Query(1, ge=1),
+    per_page: int = Query(25, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> PaginatedContactsResponse:
+    """List CRM contacts with pagination and optional search."""
+    client = get_crm_client(db=db, user_id=user.id)
+    if isinstance(client, DatabaseCRM):
+        items, total = await client.list_contacts_paginated(page=page, per_page=per_page, query=q)
     else:
-        results = await client.search_contacts("")  # returns all
-    return [ContactResponse(**c) for c in results]
+        results = await client.search_contacts(q or "")
+        total = len(results)
+        start = (page - 1) * per_page
+        items = results[start : start + per_page]
+    return PaginatedContactsResponse(
+        items=[ContactResponse(**c) for c in items],
+        total=total,
+        page=page,
+        per_page=per_page,
+    )
 
 
 @router.get(
@@ -38,10 +69,11 @@ async def list_contacts(
 )
 async def get_contact(
     email: EmailStr = Path(..., description="Contact email address"),
-    _user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> ContactResponse:
     """Look up a CRM contact record by email address."""
-    client = get_crm_client()
+    client = get_crm_client(db=db, user_id=user.id)
     contact = await client.get_contact(email)
     if contact is None:
         raise HTTPException(
@@ -59,10 +91,60 @@ async def get_contact(
 async def update_contact(
     body: ContactUpdateRequest,
     email: EmailStr = Path(..., description="Contact email address"),
-    _user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> ContactResponse:
     """Create or update a CRM contact record."""
-    client = get_crm_client()
+    client = get_crm_client(db=db, user_id=user.id)
     data = body.model_dump(exclude_unset=True)
     updated = await client.update_contact(email, data)
     return ContactResponse(**updated)
+
+
+@router.delete(
+    "/contacts/{email}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a contact",
+)
+async def delete_contact(
+    email: EmailStr = Path(..., description="Contact email address"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> None:
+    """Delete a CRM contact by email."""
+    from sqlalchemy import select, delete as sa_delete
+    from app.models.contact import Contact
+
+    result = await db.execute(
+        select(Contact).where(
+            Contact.user_id == user.id,
+            Contact.email == email.lower(),
+        )
+    )
+    contact = result.scalars().first()
+    if contact is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No contact found for email: {email}",
+        )
+    await db.delete(contact)
+    await db.flush()
+
+
+@router.get(
+    "/contacts/{email}/emails",
+    response_model=list[ContactEmailResponse],
+    summary="Get email history for a contact",
+)
+async def get_contact_emails(
+    email: EmailStr = Path(..., description="Contact email address"),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[ContactEmailResponse]:
+    """Fetch email history associated with a contact."""
+    client = get_crm_client(db=db, user_id=user.id)
+    if isinstance(client, DatabaseCRM):
+        emails = await client.get_contact_emails(email, limit=limit)
+        return [ContactEmailResponse(**e) for e in emails]
+    return []

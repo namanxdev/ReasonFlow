@@ -28,6 +28,7 @@ class EventType(StrEnum):
     EMAIL_SENT = "email_sent"
     BATCH_PROGRESS = "batch_progress"
     BATCH_COMPLETE = "batch_complete"
+    EMAIL_SYNC_COMPLETE = "email_sync_complete"
 
 
 # In-memory subscriber registry: {user_id: [asyncio.Queue, ...]}

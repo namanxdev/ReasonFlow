@@ -1,70 +1,224 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useAuthStore } from "@/stores";
 
 interface UseWebSocketOptions {
   url: string;
   onMessage?: (data: any) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
+  onError?: (error: Event) => void;
+  /** Maximum number of reconnection attempts (0 = infinite) */
+  maxReconnectAttempts?: number;
+  /** Base delay in ms for exponential backoff */
+  reconnectBaseDelay?: number;
+  /** Maximum delay in ms between reconnection attempts */
+  maxReconnectDelay?: number;
+  /** Enable reconnection on connection loss */
+  enableReconnect?: boolean;
 }
 
-export function useWebSocket({ url, onMessage, onConnect, onDisconnect }: UseWebSocketOptions) {
-  const [isConnected, setIsConnected] = useState(false);
+interface WebSocketState {
+  isConnected: boolean;
+  isConnecting: boolean;
+  reconnectAttempts: number;
+}
+
+export function useWebSocket({
+  url,
+  onMessage,
+  onConnect,
+  onDisconnect,
+  onError,
+  maxReconnectAttempts = 0, // 0 = infinite
+  reconnectBaseDelay = 1000,
+  maxReconnectDelay = 30000,
+  enableReconnect = true,
+}: UseWebSocketOptions) {
+  const [state, setState] = useState<WebSocketState>({
+    isConnected: false,
+    isConnecting: false,
+    reconnectAttempts: 0,
+  });
+  
   const ws = useRef<WebSocket | null>(null);
-  const reconnectAttempts = useRef(0);
-  const reconnectTimeout = useRef<NodeJS.Timeout>();
+  const reconnectTimeout = useRef<NodeJS.Timeout | null>(null);
+  const intentionalClose = useRef(false);
+  const wasConnected = useRef(false);
+  
+  // Get auth state from store
+  const { accessToken, isAuthenticated } = useAuthStore();
+
+  // Cleanup function for reconnection timeout
+  const clearReconnectTimeout = useCallback(() => {
+    if (reconnectTimeout.current !== null) {
+      clearTimeout(reconnectTimeout.current);
+      reconnectTimeout.current = null;
+    }
+  }, []);
 
   const connect = useCallback(() => {
-    const token = localStorage.getItem("rf_access_token");
-    if (!token) return;
-
-    const wsUrl = `${url}?token=${token}`;
-    ws.current = new WebSocket(wsUrl);
-
-    ws.current.onopen = () => {
-      setIsConnected(true);
-      reconnectAttempts.current = 0;
-      onConnect?.();
-    };
-
-    ws.current.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      onMessage?.(data);
-    };
-
-    ws.current.onclose = () => {
-      setIsConnected(false);
-      onDisconnect?.();
-      
-      // Exponential backoff reconnect
-      const maxDelay = 30000; // 30 seconds max
-      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), maxDelay);
-      reconnectAttempts.current++;
-      
-      reconnectTimeout.current = setTimeout(connect, delay);
-    };
-
-    ws.current.onerror = (error) => {
-      console.error("WebSocket error:", error);
-    };
-  }, [url, onMessage, onConnect, onDisconnect]);
-
-  const disconnect = useCallback(() => {
-    if (reconnectTimeout.current) {
-      clearTimeout(reconnectTimeout.current);
+    // Don't connect if already connected or connecting
+    if (ws.current?.readyState === WebSocket.OPEN ||
+        ws.current?.readyState === WebSocket.CONNECTING) {
+      return;
     }
-    ws.current?.close();
-  }, []);
+
+    // Don't connect if not authenticated
+    if (!accessToken) {
+      return;
+    }
+
+    clearReconnectTimeout();
+    intentionalClose.current = false;
+    setState(prev => ({ ...prev, isConnecting: true }));
+
+    // Build WebSocket URL with token
+    const wsUrl = `${url}?token=${encodeURIComponent(accessToken)}`;
+    
+    try {
+      ws.current = new WebSocket(wsUrl);
+
+      ws.current.onopen = () => {
+        wasConnected.current = true;
+        setState({
+          isConnected: true,
+          isConnecting: false,
+          reconnectAttempts: 0,
+        });
+        onConnect?.();
+      };
+
+      ws.current.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          // Handle ping/pong for connection keepalive
+          if (data.type === "ping") {
+            ws.current?.send(JSON.stringify({ type: "pong" }));
+            return;
+          }
+          
+          onMessage?.(data);
+        } catch (err) {
+          console.error("Failed to parse WebSocket message:", err);
+          onMessage?.(event.data);
+        }
+      };
+
+      ws.current.onclose = (event) => {
+        const wasClean = event.wasClean;
+        setState(prev => ({
+          ...prev,
+          isConnected: false,
+          isConnecting: false,
+        }));
+        
+        onDisconnect?.();
+
+        // Don't reconnect if:
+        // 1. Close was intentional
+        // 2. Reconnect is disabled
+        // 3. Max attempts reached (if set)
+        if (intentionalClose.current || !enableReconnect) {
+          return;
+        }
+
+        const currentAttempt = state.reconnectAttempts;
+        if (maxReconnectAttempts > 0 && currentAttempt >= maxReconnectAttempts) {
+          console.error(`WebSocket max reconnection attempts (${maxReconnectAttempts}) reached`);
+          return;
+        }
+
+        // Exponential backoff with jitter
+        const delay = Math.min(
+          reconnectBaseDelay * Math.pow(2, currentAttempt),
+          maxReconnectDelay
+        );
+        // Add random jitter (±20%) to prevent thundering herd
+        const jitter = delay * 0.2 * (Math.random() * 2 - 1);
+        const finalDelay = Math.max(0, delay + jitter);
+
+        setState(prev => ({
+          ...prev,
+          reconnectAttempts: prev.reconnectAttempts + 1,
+        }));
+
+        reconnectTimeout.current = setTimeout(connect, finalDelay);
+      };
+
+      ws.current.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        onError?.(error);
+      };
+    } catch (err) {
+      console.error("Failed to create WebSocket connection:", err);
+      setState(prev => ({
+        ...prev,
+        isConnecting: false,
+      }));
+    }
+  }, [
+    url,
+    accessToken,
+    enableReconnect,
+    maxReconnectAttempts,
+    reconnectBaseDelay,
+    maxReconnectDelay,
+    onConnect,
+    onMessage,
+    onDisconnect,
+    onError,
+    state.reconnectAttempts,
+    clearReconnectTimeout,
+  ]);
+
+  const disconnect = useCallback((code?: number, reason?: string) => {
+    intentionalClose.current = true;
+    clearReconnectTimeout();
+    
+    if (ws.current) {
+      ws.current.close(code, reason);
+      ws.current = null;
+    }
+  }, [clearReconnectTimeout]);
 
   const send = useCallback((data: any) => {
     if (ws.current?.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify(data));
+      ws.current.send(typeof data === "string" ? data : JSON.stringify(data));
+      return true;
     }
+    return false;
   }, []);
 
+  // Connect when component mounts or token changes
   useEffect(() => {
-    connect();
-    return () => disconnect();
-  }, [connect, disconnect]);
+    if (isAuthenticated && accessToken) {
+      connect();
+    } else {
+      disconnect();
+    }
+    
+    return () => {
+      disconnect();
+    };
+  }, [connect, disconnect, isAuthenticated, accessToken]);
 
-  return { isConnected, send, connect, disconnect };
+  // Reconnect when URL changes
+  useEffect(() => {
+    if (wasConnected.current) {
+      disconnect();
+      connect();
+    }
+  }, [url, connect, disconnect]);
+
+  return {
+    isConnected: state.isConnected,
+    isConnecting: state.isConnecting,
+    reconnectAttempts: state.reconnectAttempts,
+    send,
+    connect,
+    disconnect,
+  };
 }
+
+export default useWebSocket;

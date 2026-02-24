@@ -86,6 +86,21 @@ async def classify_emails(
 
 
 @router.get(
+    "/sync/status",
+    summary="Get auto-sync status",
+)
+async def get_sync_status(
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Return whether auto-sync is active and Gmail is connected."""
+    from app.services.scheduler import _scheduler_task
+    return {
+        "auto_sync_active": _scheduler_task is not None and not _scheduler_task.done(),
+        "gmail_connected": user.oauth_token_encrypted is not None,
+    }
+
+
+@router.get(
     "/{email_id}",
     response_model=EmailDetailResponse,
     summary="Get a single email with full details",

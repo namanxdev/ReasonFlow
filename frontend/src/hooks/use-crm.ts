@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
-import type { Contact } from "@/types";
+import type { Contact, PaginatedResponse } from "@/types";
 
 export interface ContactUpdatePayload {
   name?: string;
@@ -11,13 +11,36 @@ export interface ContactUpdatePayload {
   tags?: string[];
 }
 
-export function useContacts(query?: string) {
+export interface ContactFilters {
+  q?: string;
+  page?: number;
+  per_page?: number;
+}
+
+export interface ContactEmail {
+  id: string;
+  subject: string | null;
+  sender: string | null;
+  recipient: string | null;
+  received_at: string | null;
+  classification: string | null;
+  status: string | null;
+}
+
+export function useContacts(filters: ContactFilters = {}) {
   return useQuery({
-    queryKey: ["crm", "contacts", query],
+    queryKey: ["crm", "contacts", filters],
     queryFn: () =>
       api
-        .get<Contact[]>(`/crm/contacts`, { params: query ? { q: query } : {} })
+        .get<PaginatedResponse<Contact>>(`/crm/contacts`, {
+          params: {
+            q: filters.q || undefined,
+            page: filters.page || 1,
+            per_page: filters.per_page || 25,
+          },
+        })
         .then((r) => r.data),
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -28,6 +51,17 @@ export function useContact(email: string) {
       api.get<Contact>(`/crm/contacts/${encodeURIComponent(email)}`).then((r) => r.data),
     enabled: !!email,
     retry: false,
+  });
+}
+
+export function useContactEmails(email: string) {
+  return useQuery({
+    queryKey: ["crm", "contact-emails", email],
+    queryFn: () =>
+      api
+        .get<ContactEmail[]>(`/crm/contacts/${encodeURIComponent(email)}/emails`)
+        .then((r) => r.data),
+    enabled: !!email,
   });
 }
 
@@ -48,7 +82,19 @@ export function useUpdateContact() {
       queryClient.invalidateQueries({
         queryKey: ["crm", "contact", variables.email],
       });
-      // Invalidate the contacts list so grid updates
+      queryClient.invalidateQueries({
+        queryKey: ["crm", "contacts"],
+      });
+    },
+  });
+}
+
+export function useDeleteContact() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (email: string) =>
+      api.delete(`/crm/contacts/${encodeURIComponent(email)}`),
+    onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["crm", "contacts"],
       });

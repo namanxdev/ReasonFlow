@@ -1,15 +1,14 @@
 "use client";
 
 import { useState, memo } from "react";
-import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import type { Contact } from "@/types/contact";
+import type { Contact } from "@/types";
 import { AppShellTopNav } from "@/components/layout/app-shell-top-nav";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useContact, useContacts, useUpdateContact } from "@/hooks/use-crm";
+import { Pagination } from "@/components/ui/pagination";
+import { useContact, useContacts, useUpdateContact, useDeleteContact, useContactEmails } from "@/hooks/use-crm";
 import {
   Search,
   Loader2,
@@ -24,10 +23,12 @@ import {
   Save,
   AlertCircle,
   Contact as ContactIcon,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, SectionCard, StaggerContainer, StaggerItem } from "@/components/layout/dashboard-shell";
 import { formatDateTime } from "@/lib/date-utils";
+import { useDebounce } from "@/hooks/use-debounce";
 
 // Memoized Contact Card Component
 interface ContactCardProps {
@@ -96,6 +97,11 @@ const ContactCard = memo(function ContactCard({
 export default function CrmPage() {
   const [searchEmail, setSearchEmail] = useState("");
   const [activeEmail, setActiveEmail] = useState("");
+  const [contactPage, setContactPage] = useState(1);
+  const [contactPageSize, setContactPageSize] = useState(25);
+
+  // Debounce the search input for API filtering
+  const debouncedSearchEmail = useDebounce(searchEmail, 300);
 
   const [editName, setEditName] = useState("");
   const [editCompany, setEditCompany] = useState("");
@@ -105,14 +111,25 @@ export default function CrmPage() {
   const [editTags, setEditTags] = useState("");
   const [isEditing, setIsEditing] = useState(false);
 
-  const { data: contacts, isLoading: contactsLoading } = useContacts();
+  // Use debounced search for filtering contacts with pagination
+  const { data: contactsData, isLoading: contactsLoading, isFetching: contactsFetching } = useContacts({
+    q: debouncedSearchEmail || undefined,
+    page: contactPage,
+    per_page: contactPageSize,
+  });
   const {
     data: contact,
     isLoading,
     error,
     isFetched,
   } = useContact(activeEmail);
+  const { data: contactEmailHistory } = useContactEmails(activeEmail);
   const updateContact = useUpdateContact();
+  const deleteContact = useDeleteContact();
+
+  const contacts = contactsData?.items || [];
+  const contactsTotal = contactsData?.total || 0;
+  const contactsTotalPages = contactsData ? Math.ceil(contactsData.total / contactsData.per_page) || 1 : 1;
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,6 +180,20 @@ export default function CrmPage() {
     );
   };
 
+  const handleDelete = () => {
+    if (!activeEmail) return;
+    deleteContact.mutate(activeEmail, {
+      onSuccess: () => {
+        toast.success("Contact deleted");
+        setActiveEmail("");
+        setIsEditing(false);
+      },
+      onError: (err: any) => {
+        toast.error(err.response?.data?.detail || "Failed to delete contact");
+      },
+    });
+  };
+
   return (
     <AppShellTopNav>
       <StaggerContainer className="space-y-6">
@@ -185,7 +216,10 @@ export default function CrmPage() {
                   <Input
                     placeholder="Search by email address..."
                     value={searchEmail}
-                    onChange={(e) => setSearchEmail(e.target.value)}
+                    onChange={(e) => {
+                      setSearchEmail(e.target.value);
+                      setContactPage(1);
+                    }}
                     className="pl-9 h-12 bg-white/70 border-white/50 text-base"
                     type="email"
                   />
@@ -205,9 +239,9 @@ export default function CrmPage() {
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-indigo-500" />
                   <span className="text-sm font-medium">All Contacts</span>
-                  {contacts && (
+                  {contactsData && (
                     <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 text-xs font-medium">
-                      {contacts.length}
+                      {contactsData.total}
                     </span>
                   )}
                 </div>
@@ -217,7 +251,7 @@ export default function CrmPage() {
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="size-6 animate-spin text-muted-foreground" />
                   </div>
-                ) : contacts && contacts.length > 0 ? (
+                ) : contacts.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {contacts.map((c) => (
                       <ContactCard
@@ -240,6 +274,25 @@ export default function CrmPage() {
               </div>
             </SectionCard>
           </StaggerItem>
+
+          {/* Contacts Pagination */}
+          {contactsTotal > 0 && (
+            <StaggerItem>
+              <Pagination
+                currentPage={contactPage}
+                totalPages={contactsTotalPages}
+                totalItems={contactsTotal}
+                pageSize={contactPageSize}
+                isFetching={contactsFetching}
+                itemLabel="contacts"
+                onPageChange={setContactPage}
+                onPageSizeChange={(size) => {
+                  setContactPageSize(size);
+                  setContactPage(1);
+                }}
+              />
+            </StaggerItem>
+          )}
 
           {/* Loading */}
           {isLoading && (
@@ -284,9 +337,24 @@ export default function CrmPage() {
                     <User className="w-4 h-4 text-indigo-500" />
                     <span className="text-sm font-medium">Contact Details</span>
                   </div>
-                  <Button variant="outline" size="sm" onClick={handleStartEdit}>
-                    Edit
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={handleStartEdit}>
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDelete}
+                      disabled={deleteContact.isPending}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      {deleteContact.isPending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
                 <div className="p-5">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -307,7 +375,7 @@ export default function CrmPage() {
                         <div>
                           <p className="text-xs text-muted-foreground">Name</p>
                           <p className="text-sm font-medium">
-                            {contact.name || "—"}
+                            {contact.name || "\u2014"}
                           </p>
                         </div>
                       </div>
@@ -318,7 +386,7 @@ export default function CrmPage() {
                         <div>
                           <p className="text-xs text-muted-foreground">Company</p>
                           <p className="text-sm font-medium">
-                            {contact.company || "—"}
+                            {contact.company || "\u2014"}
                           </p>
                         </div>
                       </div>
@@ -329,7 +397,7 @@ export default function CrmPage() {
                         <div>
                           <p className="text-xs text-muted-foreground">Title</p>
                           <p className="text-sm font-medium">
-                            {contact.title || "—"}
+                            {contact.title || "\u2014"}
                           </p>
                         </div>
                       </div>
@@ -342,7 +410,7 @@ export default function CrmPage() {
                         <div>
                           <p className="text-xs text-muted-foreground">Phone</p>
                           <p className="text-sm font-medium">
-                            {contact.phone || "—"}
+                            {contact.phone || "\u2014"}
                           </p>
                         </div>
                       </div>
@@ -363,7 +431,7 @@ export default function CrmPage() {
                                 </span>
                               ))
                             ) : (
-                              <span className="text-sm">—</span>
+                              <span className="text-sm">{"\u2014"}</span>
                             )}
                           </div>
                         </div>
@@ -374,7 +442,7 @@ export default function CrmPage() {
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Notes</p>
-                          <p className="text-sm">{contact.notes || "—"}</p>
+                          <p className="text-sm">{contact.notes || "\u2014"}</p>
                         </div>
                       </div>
                     </div>
@@ -382,6 +450,52 @@ export default function CrmPage() {
                   <div className="mt-6 pt-4 border-t text-xs text-muted-foreground">
                     Last interaction: {contact.last_interaction ? formatDateTime(contact.last_interaction) : "N/A"}
                   </div>
+                </div>
+              </SectionCard>
+            </StaggerItem>
+          )}
+
+          {/* Email History */}
+          {contact && !isLoading && !isEditing && contactEmailHistory && contactEmailHistory.length > 0 && (
+            <StaggerItem>
+              <SectionCard>
+                <div className="p-5 border-b bg-gradient-to-r from-indigo-50/50 to-violet-50/50">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-indigo-500" />
+                    <span className="text-sm font-medium">Email History</span>
+                    <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 text-xs font-medium">
+                      {contactEmailHistory.length}
+                    </span>
+                  </div>
+                </div>
+                <div className="divide-y">
+                  {contactEmailHistory.map((email) => (
+                    <div key={email.id} className="p-4 hover:bg-slate-50/50">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium truncate flex-1">
+                          {email.subject || "(No subject)"}
+                        </p>
+                        <div className="flex items-center gap-2 ml-4">
+                          {email.classification && (
+                            <span className="text-xs bg-blue-100 text-blue-600 rounded-full px-2 py-0.5">
+                              {email.classification}
+                            </span>
+                          )}
+                          {email.status && (
+                            <span className="text-xs bg-slate-100 text-slate-600 rounded-full px-2 py-0.5">
+                              {email.status}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
+                        <span>{email.sender}</span>
+                        {email.received_at && (
+                          <span>{formatDateTime(email.received_at)}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </SectionCard>
             </StaggerItem>
