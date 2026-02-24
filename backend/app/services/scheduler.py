@@ -40,7 +40,7 @@ async def _sync_all_users() -> None:
     for user in users:
         try:
             async with async_session_factory() as db:
-                sync_result = await _sync_emails_core(db, user)
+                sync_result = await _sync_emails_core(db, user) or {}
                 await db.commit()
 
                 # Auto-classify if new emails were found

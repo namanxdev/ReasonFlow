@@ -8,6 +8,7 @@ import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { Loader2, XCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import api from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
 
 type CallbackStatus = "loading" | "success" | "error";
 
@@ -37,6 +38,13 @@ function GmailCallbackContent() {
         // store it so the user is logged in.
         if (response.data.access_token) {
           localStorage.setItem("rf_access_token", response.data.access_token);
+          // Update auth store so the API client has the token in memory.
+          // useAuthStore.getState() is safe here because we're inside a
+          // useEffect callback (not a render path).
+          useAuthStore.getState().login(
+            { id: "", email: response.data.email },
+            response.data.access_token,
+          );
         }
 
         // Auto-redirect to inbox on success

@@ -260,6 +260,8 @@ async def _sync_emails_core(db: AsyncSession, user: User) -> dict[str, int]:
     except Exception as crm_exc:
         logger.warning("CRM auto-populate failed: %s", crm_exc)
 
+    return {"fetched": len(raw_emails), "created": created}
+
 
 def _enrich_and_create_contact(
     crm,

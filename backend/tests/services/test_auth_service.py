@@ -8,9 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.models.user import User
-from app.schemas.auth import TokenResponse
+from app.schemas.auth import TokenResponse, TokenResponseWithRefresh
 from tests.services.conftest import make_user
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -73,7 +72,7 @@ async def test_register_raises_409_if_email_exists(mock_db):
 
 @pytest.mark.asyncio
 async def test_login_returns_token_for_valid_credentials(mock_db):
-    """login() should return a TokenResponse for correct email/password."""
+    """login() should return a TokenResponseWithRefresh for correct email/password."""
     from app.services.auth_service import login
 
     user = make_user(email="user@example.com", hashed_password="hashed_pw")
@@ -82,11 +81,14 @@ async def test_login_returns_token_for_valid_credentials(mock_db):
     with (
         patch("app.services.auth_service.verify_password", return_value=True),
         patch("app.services.auth_service.create_access_token", return_value="access.token"),
+        patch("app.services.auth_service.create_refresh_token", return_value="refresh.token"),
     ):
         response = await login(mock_db, "user@example.com", "correct_pw")
 
-    assert isinstance(response, TokenResponse)
+    assert isinstance(response, TokenResponseWithRefresh)
+    assert isinstance(response, TokenResponse)  # Subclass — still a TokenResponse.
     assert response.access_token == "access.token"
+    assert response.refresh_token == "refresh.token"
     assert response.token_type == "bearer"
     assert response.expires_in is not None and response.expires_in > 0
 
@@ -251,7 +253,6 @@ async def test_handle_gmail_callback_stores_encrypted_tokens(mock_db):
 async def test_handle_gmail_callback_raises_400_on_bad_code(mock_db):
     """handle_gmail_callback() should raise HTTP 400 when Google rejects the code."""
     import httpx as real_httpx
-
     from fastapi import HTTPException
 
     from app.services.auth_service import handle_gmail_callback

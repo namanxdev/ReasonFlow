@@ -8,11 +8,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.middleware.rate_limit import auth_rate_limit
+from app.core.config import settings
 from app.core.database import get_db
-from app.core.deps import get_current_user, oauth2_scheme
+from app.core.deps import oauth2_scheme
 from app.core.security import (
     create_access_token,
     create_password_reset_token,
+    create_refresh_token,
     decode_token,
     hash_password,
 )
@@ -28,9 +31,7 @@ from app.schemas.auth import (
     RegisterResponse,
     ResetPasswordRequest,
     TokenResponse,
-    TokenResponseWithRefresh,
 )
-from app.api.middleware.rate_limit import auth_rate_limit
 from app.services import auth_service
 
 logger = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ async def login(
     Set use_cookies=false to receive the refresh token in the response body (less secure).
     """
     result = await auth_service.login(db, body.email, body.password)
-    
+
     # Set refresh token as httpOnly cookie for security (SEC-3 fix)
     if use_cookies and result.refresh_token:
         response.set_cookie(
@@ -90,7 +91,7 @@ async def login(
             max_age=7 * 24 * 60 * 60,  # 7 days
             path="/api/v1/auth/refresh",  # Only sent to refresh endpoint
         )
-    
+
     return TokenResponse(
         access_token=result.access_token,
         token_type=result.token_type,
@@ -116,16 +117,16 @@ async def refresh(
     """
     # Try to get refresh token from cookie first (more secure)
     refresh_token = request.cookies.get("refresh_token") or token
-    
+
     if not refresh_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token required",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     result = await auth_service.refresh_token(db, refresh_token)
-    
+
     # Update refresh token cookie if using cookie-based auth
     if request.cookies.get("refresh_token") and result.refresh_token:
         response.set_cookie(
@@ -137,7 +138,7 @@ async def refresh(
             max_age=7 * 24 * 60 * 60,
             path="/api/v1/auth/refresh",
         )
-    
+
     return TokenResponse(
         access_token=result.access_token,
         token_type=result.token_type,
@@ -185,6 +186,7 @@ async def gmail_oauth_url() -> GmailUrlResponse:
 async def gmail_callback(
     body: GmailCallbackRequest,
     request: Request,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> GmailCallbackResponse:
     """Exchange the Google OAuth authorization code.
@@ -218,6 +220,21 @@ async def gmail_callback(
 
     # Unauthenticated flow – login / register via Gmail.
     result = await auth_service.handle_gmail_login(db, body.code)
+
+    # Mirror the login endpoint: issue a refresh token and deliver it as an
+    # httpOnly cookie so the client can silently renew the access token.
+    if result.get("access_token"):
+        refresh_token = create_refresh_token({"sub": result["email"]})
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=settings.is_production,
+            samesite="strict",
+            max_age=7 * 24 * 60 * 60,  # 7 days
+            path="/api/v1/auth/refresh",
+        )
+
     return GmailCallbackResponse(
         status=result["status"],
         email=result["email"],

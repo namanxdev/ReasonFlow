@@ -11,6 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from jose import JWTError, jwt
 from sqlalchemy import select
+from starlette.websockets import WebSocketState
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -97,7 +98,7 @@ async def _heartbeat(websocket: WebSocket) -> None:
         while True:
             await asyncio.sleep(HEARTBEAT_INTERVAL)
             # Check if connection is still open before sending
-            if websocket.client_state.CONNECTED:
+            if websocket.client_state == WebSocketState.CONNECTED:
                 await websocket.send_json({"type": "ping"})
     except asyncio.CancelledError:
         # Task was cancelled, exit gracefully

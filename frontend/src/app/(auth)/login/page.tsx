@@ -91,6 +91,8 @@ export default function LoginPage() {
       const { access_token } = response.data;
 
       if (access_token) {
+        // Persist token to localStorage so AuthProvider can rehydrate on reload
+        localStorage.setItem("rf_access_token", access_token);
         // Use centralized auth store - access token in memory, refresh token in httpOnly cookie
         login(
           { id: "", email }, // User ID will be populated from profile API if available

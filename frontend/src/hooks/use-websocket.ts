@@ -72,32 +72,40 @@ export function useWebSocket({
     intentionalClose.current = false;
     setState(prev => ({ ...prev, isConnecting: true }));
 
-    // Build WebSocket URL with token
-    const wsUrl = `${url}?token=${encodeURIComponent(accessToken)}`;
-    
+    // Connect without token in URL; token is sent as first message after open
+    const wsUrl = url;
+
     try {
       ws.current = new WebSocket(wsUrl);
 
       ws.current.onopen = () => {
-        wasConnected.current = true;
-        setState({
-          isConnected: true,
-          isConnecting: false,
-          reconnectAttempts: 0,
-        });
-        onConnect?.();
+        // Send authentication token as first message (backend expects this)
+        ws.current?.send(JSON.stringify({ token: accessToken }));
       };
 
       ws.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          
+
           // Handle ping/pong for connection keepalive
           if (data.type === "ping") {
             ws.current?.send(JSON.stringify({ type: "pong" }));
             return;
           }
-          
+
+          // Backend sends a "connected" confirmation after successful auth;
+          // only mark the connection as live once we receive it.
+          if (data.type === "connected") {
+            wasConnected.current = true;
+            setState({
+              isConnected: true,
+              isConnecting: false,
+              reconnectAttempts: 0,
+            });
+            onConnect?.();
+            return;
+          }
+
           onMessage?.(data);
         } catch (err) {
           console.error("Failed to parse WebSocket message:", err);

@@ -63,7 +63,7 @@ export default function InboxPage() {
 
   // WebSocket for real-time updates
   useWebSocket({
-    url: `${process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000"}/api/v1/ws`,
+    url: `${process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000"}/api/v1/notifications/ws`,
     onMessage: useCallback(
       (data: any) => {
         if (

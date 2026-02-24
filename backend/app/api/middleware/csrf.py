@@ -7,13 +7,11 @@ X-CSRF-Token header that matches the token in the csrf_token cookie.
 
 from __future__ import annotations
 
-import hashlib
 import hmac
 import logging
 import secrets
-from datetime import UTC, datetime, timedelta
 
-from fastapi import Request, Response
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
@@ -27,6 +25,9 @@ SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
 # Paths that are exempt from CSRF protection (e.g., webhook endpoints)
 EXEMPT_PATHS = frozenset({
     "/api/v1/auth/gmail/callback",  # OAuth callback doesn't need CSRF
+    "/api/v1/auth/login",
+    "/api/v1/auth/refresh",   # Uses httpOnly cookie — already secure
+    "/api/v1/auth/logout",    # Must work even when session is expired
     "/health",
     "/docs",
     "/redoc",
@@ -55,12 +56,12 @@ def _should_skip_csrf(request: Request) -> bool:
     # Skip for safe methods
     if request.method in SAFE_METHODS:
         return True
-    
+
     # Skip for exempt paths
     path = request.url.path
     if any(path.startswith(exempt) for exempt in EXEMPT_PATHS):
         return True
-    
+
     return False
 
 
@@ -80,19 +81,19 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         """Process the request with CSRF protection."""
-        
+
         # Get existing CSRF token from cookie or generate new one
         csrf_cookie = request.cookies.get(CSRF_COOKIE_NAME)
         if not csrf_cookie:
             csrf_cookie = _generate_csrf_token()
-        
+
         # Store token in request state for response handler
         request.state.csrf_token = csrf_cookie
-        
+
         # Check if we need to validate CSRF token
         if not _should_skip_csrf(request):
             csrf_header = request.headers.get(CSRF_HEADER_NAME)
-            
+
             if not csrf_header:
                 logger.warning(
                     "CSRF token missing in header for %s %s",
@@ -107,7 +108,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                         "code": "CSRF_TOKEN_MISSING"
                     }
                 )
-            
+
             if not hmac.compare_digest(csrf_cookie, csrf_header):
                 logger.warning(
                     "CSRF token mismatch for %s %s",
@@ -122,19 +123,19 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                         "code": "CSRF_TOKEN_INVALID"
                     }
                 )
-        
+
         # Process the request
         response = await call_next(request)
-        
+
         # Set/update CSRF cookie
         # Use SameSite=Strict to prevent cross-site requests from sending the cookie
         # Use HttpOnly=False so JavaScript can read it (needed for double-submit pattern)
         # Use Secure in production
         from app.core.config import settings
-        
+
         cookie_value = request.state.csrf_token
         max_age = CSRF_TOKEN_EXPIRY_HOURS * 3600
-        
+
         response.set_cookie(
             key=CSRF_COOKIE_NAME,
             value=cookie_value,
@@ -144,7 +145,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             samesite="strict",
             path="/",
         )
-        
+
         return response
 
 

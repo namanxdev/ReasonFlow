@@ -22,7 +22,7 @@ from app.core.security import (
 )
 from app.integrations.gmail.oauth import exchange_code
 from app.models.user import User
-from app.schemas.auth import TokenResponse
+from app.schemas.auth import TokenResponse, TokenResponseWithRefresh
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +53,8 @@ async def register(db: AsyncSession, email: str, password: str) -> User:
     return user
 
 
-async def login(db: AsyncSession, email: str, password: str) -> TokenResponse:
-    """Verify credentials and return a JWT access token.
+async def login(db: AsyncSession, email: str, password: str) -> TokenResponseWithRefresh:
+    """Verify credentials and return a JWT access token plus refresh token.
 
     Raises HTTP 401 if the email is not found or the password is wrong.
     """
@@ -72,7 +72,7 @@ async def login(db: AsyncSession, email: str, password: str) -> TokenResponse:
     access_token = create_access_token(token_data)
     refresh_token = create_refresh_token(token_data)
     logger.info("User logged in email=%s", email)
-    return TokenResponse(
+    return TokenResponseWithRefresh(
         access_token=access_token,
         refresh_token=refresh_token,
         token_type="bearer",
@@ -282,7 +282,6 @@ async def refresh_user_gmail_token(db: AsyncSession, user_id: uuid.UUID) -> bool
         True if token was refreshed (or still valid), False if refresh failed
         or user has no refresh token.
     """
-    import time
 
     from app.core.config import settings
 

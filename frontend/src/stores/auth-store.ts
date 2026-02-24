@@ -63,13 +63,17 @@ export const useAuthStore = create<AuthState>()(
         isLoading: false,
       }),
     
-    logout: () =>
+    logout: () => {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("rf_access_token");
+      }
       set({
         user: null,
         accessToken: null,
         isAuthenticated: false,
         isLoading: false,
-      }),
+      });
+    },
     
     setLoading: (isLoading) => set({ isLoading }),
     

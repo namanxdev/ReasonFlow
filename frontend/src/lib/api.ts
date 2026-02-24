@@ -49,6 +49,9 @@ function isTokenExpiringSoon(token: string, bufferSeconds: number = TOKEN_EXPIRY
 async function refreshToken(): Promise<string> {
   const response = await authApi.post("/auth/refresh", {});
   const { access_token } = response.data;
+  if (typeof window !== "undefined") {
+    localStorage.setItem("rf_access_token", access_token);
+  }
   useAuthStore.getState().updateAccessToken(access_token);
   return access_token;
 }
@@ -88,8 +91,9 @@ function onTokenRefreshed(newToken: string) {
 api.interceptors.request.use(
   async (config) => {
     if (typeof window !== "undefined") {
-      const { accessToken } = useAuthStore.getState();
-      
+      const { accessToken: storeToken } = useAuthStore.getState();
+      const accessToken = storeToken || localStorage.getItem("rf_access_token");
+
       // Add auth token
       if (accessToken && isTokenExpiringSoon(accessToken, TOKEN_EXPIRY_BUFFER_SECONDS)) {
         // Trigger refresh before the request
