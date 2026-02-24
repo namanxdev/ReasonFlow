@@ -1,7 +1,6 @@
 "use client";
 
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
 
 /**
  * User data structure
@@ -13,19 +12,23 @@ export interface User {
 
 /**
  * Authentication state interface
+ * 
+ * SECURITY NOTE: The access token is stored in memory only (not in localStorage
+ * or cookies) to prevent XSS attacks. The refresh token is stored in an httpOnly
+ * cookie that is inaccessible to JavaScript.
+ * 
+ * This implements the SEC-3 fix for JWT security.
  */
 interface AuthState {
   // State
   user: User | null;
   accessToken: string | null;
-  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   
   // Actions
   setUser: (user: User | null) => void;
-  setTokens: (accessToken: string | null, refreshToken: string | null) => void;
-  login: (user: User, accessToken: string, refreshToken: string) => void;
+  login: (user: User, accessToken: string) => void;
   logout: () => void;
   setLoading: (isLoading: boolean) => void;
   updateAccessToken: (accessToken: string) => void;
@@ -34,60 +37,44 @@ interface AuthState {
 /**
  * Auth store with Zustand
  * 
- * Note: We persist refresh token for session restoration,
- * but the access token could be kept in memory only for higher security.
- * Current implementation persists both for seamless UX.
+ * IMPORTANT: This store does NOT persist the access token. The token is kept
+ * in memory only and will be lost on page refresh. On refresh, the app should
+ * call the /auth/refresh endpoint (which uses the httpOnly cookie) to get a
+ * new access token.
+ * 
+ * This is the secure approach recommended for SPAs to prevent XSS token theft.
  */
 export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      // Initial state
-      user: null,
-      accessToken: null,
-      refreshToken: null,
-      isAuthenticated: false,
-      isLoading: true, // Start loading to check for existing session
+  (set) => ({
+    // Initial state - no persistence for security
+    user: null,
+    accessToken: null,
+    isAuthenticated: false,
+    isLoading: true, // Start loading to check for existing session
 
-      // Actions
-      setUser: (user) => set({ user }),
-      
-      setTokens: (accessToken, refreshToken) => 
-        set({ accessToken, refreshToken }),
-      
-      login: (user, accessToken, refreshToken) =>
-        set({
-          user,
-          accessToken,
-          refreshToken,
-          isAuthenticated: true,
-          isLoading: false,
-        }),
-      
-      logout: () =>
-        set({
-          user: null,
-          accessToken: null,
-          refreshToken: null,
-          isAuthenticated: false,
-          isLoading: false,
-        }),
-      
-      setLoading: (isLoading) => set({ isLoading }),
-      
-      updateAccessToken: (accessToken) => set({ accessToken }),
-    }),
-    {
-      name: "reasonflow-auth", // Storage key
-      storage: createJSONStorage(() => localStorage),
-      // Only persist specific fields
-      partialize: (state) => ({
-        user: state.user,
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
-        isAuthenticated: state.isAuthenticated,
+    // Actions
+    setUser: (user) => set({ user }),
+    
+    login: (user, accessToken) =>
+      set({
+        user,
+        accessToken,
+        isAuthenticated: true,
+        isLoading: false,
       }),
-    }
-  )
+    
+    logout: () =>
+      set({
+        user: null,
+        accessToken: null,
+        isAuthenticated: false,
+        isLoading: false,
+      }),
+    
+    setLoading: (isLoading) => set({ isLoading }),
+    
+    updateAccessToken: (accessToken) => set({ accessToken }),
+  })
 );
 
 /**
@@ -102,7 +89,6 @@ export function useAuthHeaders(): { Authorization?: string } {
  * Get auth headers outside of React components
  */
 export function getAuthHeaders(): { Authorization?: string } {
-  // This is a safe way to get current state outside of React
   const state = useAuthStore.getState();
   return state.accessToken ? { Authorization: `Bearer ${state.accessToken}` } : {};
 }

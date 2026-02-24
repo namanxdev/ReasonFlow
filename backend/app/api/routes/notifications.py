@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -16,6 +18,62 @@ from app.core.events import subscribe_events
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
+
+
+def create_ws_message(
+    msg_type: str,
+    data: dict[str, Any] | None = None,
+    error: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Create a standardized WebSocket message (ERR-5 fix).
+    
+    All WebSocket messages follow a consistent structure:
+    {
+        "type": "message_type",
+        "timestamp": "ISO8601",
+        "data": {...} | null,
+        "error": {...} | null
+    }
+    
+    Args:
+        msg_type: Type of message (e.g., "connected", "error", "event")
+        data: Optional data payload
+        error: Optional error details
+        
+    Returns:
+        Standardized message dictionary
+    """
+    return {
+        "type": msg_type,
+        "timestamp": datetime.now(UTC).isoformat(),
+        "data": data,
+        "error": error,
+    }
+
+
+def create_ws_error(
+    code: str,
+    message: str,
+    details: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Create a standardized WebSocket error message (ERR-5 fix).
+    
+    Args:
+        code: Error code (e.g., "AUTH_FAILED", "SERVER_ERROR")
+        message: Human-readable error message
+        details: Optional error details
+        
+    Returns:
+        Error message dictionary
+    """
+    return create_ws_message(
+        msg_type="error",
+        error={
+            "code": code,
+            "message": message,
+            "details": details or {},
+        },
+    )
 
 router = APIRouter()
 
@@ -96,6 +154,12 @@ async def notifications_websocket(websocket: WebSocket) -> None:
 
         if not token:
             logger.warning("WebSocket connection rejected: missing token")
+            # Send structured error before closing (ERR-5 fix)
+            await websocket.send_json(create_ws_error(
+                code="AUTH_TOKEN_MISSING",
+                message="Authentication token is required",
+                details={"close_code": WS_CLOSE_MISSING_TOKEN},
+            ))
             await websocket.close(
                 code=WS_CLOSE_MISSING_TOKEN, reason="Missing authentication token"
             )
@@ -120,13 +184,22 @@ async def notifications_websocket(websocket: WebSocket) -> None:
                 user_id = user.id
         except (JWTError, ValueError) as exc:
             logger.warning("WebSocket connection rejected: invalid token - %s", exc)
+            # Send structured error before closing (ERR-5 fix)
+            await websocket.send_json(create_ws_error(
+                code="AUTH_TOKEN_INVALID",
+                message="Authentication token is invalid or expired",
+                details={"close_code": WS_CLOSE_INVALID_TOKEN},
+            ))
             await websocket.close(
                 code=WS_CLOSE_INVALID_TOKEN, reason="Invalid authentication token"
             )
             return
 
-        # Send connected confirmation
-        await websocket.send_json({"type": "connected", "user_id": str(user_id)})
+        # Send connected confirmation with structured format (ERR-5 fix)
+        await websocket.send_json(create_ws_message(
+            msg_type="connected",
+            data={"user_id": str(user_id)},
+        ))
         logger.info("WebSocket connected for user: %s", user_id)
 
         # Subscribe to events and forward to client
@@ -145,6 +218,16 @@ async def notifications_websocket(websocket: WebSocket) -> None:
         logger.info("WebSocket disconnected for user: %s", user_id)
     except Exception as exc:
         logger.exception("WebSocket error for user %s: %s", user_id, exc)
+        # Send structured error before closing (ERR-5 fix)
+        try:
+            await websocket.send_json(create_ws_error(
+                code="SERVER_ERROR",
+                message="An internal server error occurred",
+                details={"close_code": WS_CLOSE_SERVER_ERROR},
+            ))
+        except RuntimeError:
+            # Connection already closed
+            pass
         if user_id:
             try:
                 await websocket.close(code=WS_CLOSE_SERVER_ERROR, reason="Internal server error")

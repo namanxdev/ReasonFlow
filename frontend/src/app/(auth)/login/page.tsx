@@ -88,14 +88,13 @@ export default function LoginPage() {
         password,
       });
 
-      const { access_token, refresh_token } = response.data;
+      const { access_token } = response.data;
 
       if (access_token) {
-        // Use centralized auth store instead of localStorage directly
+        // Use centralized auth store - access token in memory, refresh token in httpOnly cookie
         login(
           { id: "", email }, // User ID will be populated from profile API if available
-          access_token,
-          refresh_token || ""
+          access_token
         );
         router.push("/inbox");
       } else {

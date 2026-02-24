@@ -34,14 +34,19 @@ class TokenResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     access_token: str = Field(description="Signed JWT access token")
-    refresh_token: str | None = Field(
-        default=None,
-        description="Signed JWT refresh token (omitted on refresh responses)",
-    )
     token_type: str = Field(default="bearer", description="Token scheme (always 'bearer')")
     expires_in: int | None = Field(
         default=None,
         description="Token lifetime in seconds (omitted on refresh responses)",
+    )
+
+
+class TokenResponseWithRefresh(TokenResponse):
+    """Response including refresh token - for secure cookie-based auth."""
+
+    refresh_token: str | None = Field(
+        default=None,
+        description="Signed JWT refresh token (only returned when not using cookies)",
     )
 
 

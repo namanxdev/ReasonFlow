@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +28,7 @@ from app.schemas.auth import (
     RegisterResponse,
     ResetPasswordRequest,
     TokenResponse,
+    TokenResponseWithRefresh,
 )
 from app.api.middleware.rate_limit import auth_rate_limit
 from app.services import auth_service
@@ -66,11 +67,35 @@ async def register(
     dependencies=[Depends(auth_rate_limit)],
 )
 async def login(
+    response: Response,
     body: LoginRequest,
     db: AsyncSession = Depends(get_db),
+    use_cookies: bool = True,  # Set to False to get refresh_token in response body
 ) -> TokenResponse:
-    """Validate credentials and issue a JWT access token."""
-    return await auth_service.login(db, body.email, body.password)
+    """Validate credentials and issue a JWT access token.
+    
+    By default, the refresh token is set as an httpOnly cookie for security.
+    Set use_cookies=false to receive the refresh token in the response body (less secure).
+    """
+    result = await auth_service.login(db, body.email, body.password)
+    
+    # Set refresh token as httpOnly cookie for security (SEC-3 fix)
+    if use_cookies and result.refresh_token:
+        response.set_cookie(
+            key="refresh_token",
+            value=result.refresh_token,
+            httponly=True,
+            secure=settings.is_production,
+            samesite="strict",
+            max_age=7 * 24 * 60 * 60,  # 7 days
+            path="/api/v1/auth/refresh",  # Only sent to refresh endpoint
+        )
+    
+    return TokenResponse(
+        access_token=result.access_token,
+        token_type=result.token_type,
+        expires_in=result.expires_in,
+    )
 
 
 @router.post(
@@ -79,11 +104,63 @@ async def login(
     summary="Refresh an expiring JWT token",
 )
 async def refresh(
+    response: Response,
+    request: Request,
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
-    """Exchange a valid JWT for a fresh access token."""
-    return await auth_service.refresh_token(db, token)
+    """Exchange a valid JWT for a fresh access token.
+    
+    Supports both Authorization header and httpOnly cookie for refresh token.
+    Cookie is preferred for security (SEC-3 fix).
+    """
+    # Try to get refresh token from cookie first (more secure)
+    refresh_token = request.cookies.get("refresh_token") or token
+    
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    result = await auth_service.refresh_token(db, refresh_token)
+    
+    # Update refresh token cookie if using cookie-based auth
+    if request.cookies.get("refresh_token") and result.refresh_token:
+        response.set_cookie(
+            key="refresh_token",
+            value=result.refresh_token,
+            httponly=True,
+            secure=settings.is_production,
+            samesite="strict",
+            max_age=7 * 24 * 60 * 60,
+            path="/api/v1/auth/refresh",
+        )
+    
+    return TokenResponse(
+        access_token=result.access_token,
+        token_type=result.token_type,
+        expires_in=result.expires_in,
+    )
+
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_200_OK,
+    summary="Logout and clear auth cookies",
+)
+async def logout(
+    response: Response,
+    request: Request,
+) -> dict[str, str]:
+    """Logout the user and clear authentication cookies."""
+    # Clear refresh token cookie
+    response.delete_cookie(
+        key="refresh_token",
+        path="/api/v1/auth/refresh",
+    )
+    return {"message": "Logged out successfully"}
 
 
 @router.get(

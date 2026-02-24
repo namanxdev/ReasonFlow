@@ -233,19 +233,66 @@ async def _sync_emails_core(db: AsyncSession, user: User) -> dict[str, int]:
 
             existing = await crm.get_contact(sender_email)
             if existing is None:
-                name = sender.split("<")[0].strip().strip('"') if "<" in sender else ""
-                await crm.update_contact(
-                    sender_email,
-                    {
-                        "name": name,
-                        "company": "",
-                        "title": "",
-                        "notes": "Auto-created from email sync",
-                        "tags": ["auto-synced"],
-                    },
+                # Use enriched contact creation (CRM-4 fix)
+                from app.services.contact_enrichment import enrich_contact_data
+                
+                enriched = enrich_contact_data(
+                    sender_email, 
+                    sender, 
+                    raw.get("body", "")
                 )
+                
+                contact_data = {
+                    "name": enriched.get("name", ""),
+                    "first_name": enriched.get("first_name", ""),
+                    "last_name": enriched.get("last_name", ""),
+                    "company": enriched.get("company", ""),
+                    "title": enriched.get("title", ""),
+                    "notes": "Auto-created from email sync",
+                    "tags": ["auto-synced"],
+                }
+                
+                # Add business tag for business emails
+                if enriched.get("is_business_email"):
+                    contact_data["tags"].append("business")
+                
+                await crm.update_contact(sender_email, contact_data)
     except Exception as crm_exc:
         logger.warning("CRM auto-populate failed: %s", crm_exc)
+
+
+def _enrich_and_create_contact(
+    crm,
+    sender_email: str,
+    sender: str,
+    body: str = "",
+) -> None:
+    """Create enriched contact from email data (CRM-4 fix).
+    
+    Extracts name, company, and title information from the email
+    to populate CRM fields more intelligently.
+    """
+    from app.services.contact_enrichment import enrich_contact_data
+    
+    enriched = enrich_contact_data(sender_email, sender, body)
+    
+    contact_data = {
+        "name": enriched.get("name", ""),
+        "first_name": enriched.get("first_name", ""),
+        "last_name": enriched.get("last_name", ""),
+        "company": enriched.get("company", ""),
+        "title": enriched.get("title", ""),
+        "notes": "Auto-created from email sync",
+        "tags": ["auto-synced"],
+        "is_business_email": enriched.get("is_business_email", False),
+    }
+    
+    # Only add company tag if we detected a business email
+    if enriched.get("is_business_email") and enriched.get("company"):
+        contact_data["tags"].append("business")
+    
+    import asyncio
+    asyncio.create_task(crm.update_contact(sender_email, contact_data))
 
     logger.info(
         "Email sync for user=%s: fetched=%d created=%d",

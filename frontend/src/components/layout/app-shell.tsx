@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { useSyncEmails } from "@/hooks/use-emails";
+import { SkipToContent } from "@/components/skip-to-content";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -57,19 +58,23 @@ export function AppShell({ children }: AppShellProps) {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar
-        onSync={handleSync}
-        isSyncing={syncMutation.isPending}
-        userEmail={userEmail || undefined}
-        onLogout={handleLogout}
-      />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-y-auto">
-          {children}
-        </main>
+    <>
+      {/* Skip to content link for accessibility (A11Y-NEW-1 fix) */}
+      <SkipToContent contentId="main-content" />
+      <div className="flex h-screen overflow-hidden">
+        <Sidebar
+          onSync={handleSync}
+          isSyncing={syncMutation.isPending}
+          userEmail={userEmail || undefined}
+          onLogout={handleLogout}
+        />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Header />
+          <main id="main-content" className="flex-1 overflow-y-auto" tabIndex={-1}>
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

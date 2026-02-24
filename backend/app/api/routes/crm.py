@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +14,38 @@ from app.integrations.crm.factory import get_crm_client
 from app.integrations.crm.db_crm import DatabaseCRM
 from app.models.user import User
 from app.schemas.crm import ContactResponse, ContactUpdateRequest
+
+
+def sanitize_search_query(query: str | None) -> str | None:
+    """Sanitize search query to prevent injection attacks (VAL-5 fix).
+    
+    Removes potentially dangerous characters and limits query length.
+    
+    Args:
+        query: Raw search query string
+        
+    Returns:
+        Sanitized query string or None
+    """
+    if not query:
+        return None
+    
+    # Limit length
+    query = query[:100]
+    
+    # Remove potentially dangerous characters (SQL injection, regex injection)
+    # Allow alphanumeric, spaces, @, ., -, _, and common search operators
+    sanitized = re.sub(r'[^\w\s@.\-_]', '', query)
+    
+    # Remove SQL keywords that could be used for injection
+    sql_keywords = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'DROP', 'UNION', 'WHERE', 'FROM']
+    for keyword in sql_keywords:
+        sanitized = re.sub(rf'\b{keyword}\b', '', sanitized, flags=re.IGNORECASE)
+    
+    # Collapse multiple spaces
+    sanitized = re.sub(r'\s+', ' ', sanitized).strip()
+    
+    return sanitized if sanitized else None
 
 router = APIRouter()
 
@@ -46,6 +80,9 @@ async def list_contacts(
     user: User = Depends(get_current_user),
 ) -> PaginatedContactsResponse:
     """List CRM contacts with pagination and optional search."""
+    # Sanitize search query (VAL-5 fix)
+    q = sanitize_search_query(q)
+    
     client = get_crm_client(db=db, user_id=user.id)
     if isinstance(client, DatabaseCRM):
         items, total = await client.list_contacts_paginated(page=page, per_page=per_page, query=q)

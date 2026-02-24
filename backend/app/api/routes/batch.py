@@ -18,6 +18,7 @@ from app.schemas.batch import (
     BatchProcessRequest,
     BatchStatusResponse,
 )
+from app.api.middleware.rate_limit import batch_rate_limit
 from app.services import batch_service
 
 router = APIRouter()
@@ -59,6 +60,7 @@ async def _verify_email_ownership(
     response_model=BatchJobResponse,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Batch classify emails",
+    dependencies=[Depends(batch_rate_limit)],  # RL-4 fix
     description="""
     Queue multiple emails for background classification.
 
@@ -91,6 +93,7 @@ async def batch_classify_emails(
     response_model=BatchJobResponse,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Batch process emails through agent pipeline",
+    dependencies=[Depends(batch_rate_limit)],  # RL-4 fix
     description="""
     Queue multiple emails for background processing through the full
     agent pipeline (classify, retrieve, decide, generate, review).

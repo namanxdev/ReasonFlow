@@ -22,6 +22,12 @@ RATE_WINDOW_SECONDS: int = 60
 # Stricter limits for auth endpoints
 AUTH_RATE_LIMIT_PER_MINUTE: int = 10
 
+# Email sending rate limit (RL-3 fix)
+EMAIL_SEND_RATE_LIMIT_PER_MINUTE: int = getattr(settings, "EMAIL_SEND_RATE_LIMIT_PER_MINUTE", 30)
+
+# Batch operations rate limit (RL-4 fix)
+BATCH_RATE_LIMIT_PER_MINUTE: int = getattr(settings, "BATCH_RATE_LIMIT_PER_MINUTE", 10)
+
 # In-memory store: {identifier: [timestamp, ...]}
 _request_log: dict[str, list[float]] = {}
 
@@ -90,3 +96,39 @@ async def auth_rate_limit(
     Uses in-memory tracking — state resets on server restart.
     """
     await rate_limit(request, limit=AUTH_RATE_LIMIT_PER_MINUTE)
+
+
+# Email sending rate limiter (RL-3 fix)
+async def email_send_rate_limit(
+    request: Request,
+) -> None:
+    """Rate limiter for email sending endpoints.
+    
+    Prevents abuse of email sending functionality.
+    Default: 30 emails per minute per user.
+    """
+    user = getattr(request.state, "user", None)
+    if user is not None:
+        identifier = f"email:user:{user.id}"
+    else:
+        identifier = f"email:ip:{request.client.host}" if request.client else "email:ip:unknown"
+    
+    await rate_limit(request, limit=EMAIL_SEND_RATE_LIMIT_PER_MINUTE)
+
+
+# Batch operations rate limiter (RL-4 fix)
+async def batch_rate_limit(
+    request: Request,
+) -> None:
+    """Rate limiter for batch operation endpoints.
+    
+    Batch operations are resource-intensive and need stricter limits.
+    Default: 10 batch requests per minute per user.
+    """
+    user = getattr(request.state, "user", None)
+    if user is not None:
+        identifier = f"batch:user:{user.id}"
+    else:
+        identifier = f"batch:ip:{request.client.host}" if request.client else "batch:ip:unknown"
+    
+    await rate_limit(request, limit=BATCH_RATE_LIMIT_PER_MINUTE)

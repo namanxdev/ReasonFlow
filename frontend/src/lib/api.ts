@@ -5,11 +5,22 @@ import { getCSRFHeaders, requiresCSRF } from "./csrf";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// Axios instance for API calls
 export const api = axios.create({
   baseURL: `${API_BASE_URL}/api/v1`,
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true, // Include cookies in requests
+});
+
+// Separate instance for auth calls that handles 401 differently
+export const authApi = axios.create({
+  baseURL: `${API_BASE_URL}/api/v1`,
+  headers: {
+    "Content-Type": "application/json",
+  },
+  withCredentials: true,
 });
 
 // Buffer time in seconds before token expiration to trigger proactive refresh
@@ -32,39 +43,44 @@ function isTokenExpiringSoon(token: string, bufferSeconds: number = TOKEN_EXPIRY
 }
 
 /**
- * Refresh the access token using the refresh token
+ * Refresh the access token using the httpOnly cookie
  * @returns Promise that resolves when refresh is complete
  */
-async function refreshToken(): Promise<void> {
-  const refreshTokenValue = useAuthStore.getState().refreshToken;
-  if (!refreshTokenValue) {
-    throw new Error("No refresh token available");
-  }
-
-  const response = await axios.post(
-    `${API_BASE_URL}/api/v1/auth/refresh`,
-    {},
-    {
-      headers: {
-        Authorization: `Bearer ${refreshTokenValue}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
-
+async function refreshToken(): Promise<string> {
+  const response = await authApi.post("/auth/refresh", {});
   const { access_token } = response.data;
   useAuthStore.getState().updateAccessToken(access_token);
+  return access_token;
 }
 
 /**
  * Logout the user and redirect to login page
  */
-function handleLogout(reason: string = "session_expired"): void {
+async function handleLogout(reason: string = "session_expired"): Promise<void> {
+  try {
+    // Call logout endpoint to clear httpOnly cookie
+    await authApi.post("/auth/logout", {});
+  } catch {
+    // Ignore errors during logout
+  }
   useAuthStore.getState().logout();
   toast.error("Your session has expired. Please log in again.");
   setTimeout(() => {
     window.location.href = `/login?reason=${reason}`;
   }, 100);
+}
+
+// Track whether a token refresh is already in-flight to avoid duplicate calls.
+let isRefreshing = false;
+let refreshSubscribers: Array<(token: string) => void> = [];
+
+function subscribeTokenRefresh(cb: (token: string) => void) {
+  refreshSubscribers.push(cb);
+}
+
+function onTokenRefreshed(newToken: string) {
+  refreshSubscribers.forEach((cb) => cb(newToken));
+  refreshSubscribers = [];
 }
 
 // Request interceptor — attach JWT token and proactively refresh if expiring soon
@@ -78,11 +94,8 @@ api.interceptors.request.use(
       if (accessToken && isTokenExpiringSoon(accessToken, TOKEN_EXPIRY_BUFFER_SECONDS)) {
         // Trigger refresh before the request
         try {
-          await refreshToken();
-          const newToken = useAuthStore.getState().accessToken;
-          if (newToken) {
-            config.headers.Authorization = `Bearer ${newToken}`;
-          }
+          const newToken = await refreshToken();
+          config.headers.Authorization = `Bearer ${newToken}`;
         } catch {
           // Refresh failed - logout and redirect
           handleLogout("session_expired");
@@ -101,19 +114,6 @@ api.interceptors.request.use(
   },
   (error) => Promise.reject(error)
 );
-
-// Track whether a token refresh is already in-flight to avoid duplicate calls.
-let isRefreshing = false;
-let refreshSubscribers: Array<(token: string) => void> = [];
-
-function subscribeTokenRefresh(cb: (token: string) => void) {
-  refreshSubscribers.push(cb);
-}
-
-function onTokenRefreshed(newToken: string) {
-  refreshSubscribers.forEach((cb) => cb(newToken));
-  refreshSubscribers = [];
-}
 
 // Response interceptor — attempt token refresh on 401, fallback to login redirect
 api.interceptors.response.use(
@@ -136,28 +136,11 @@ api.interceptors.response.use(
         isRefreshing = true;
 
         try {
-          const refreshTokenValue = useAuthStore.getState().refreshToken;
-          if (!refreshTokenValue) {
-            throw new Error("No refresh token available");
-          }
-
-          const response = await axios.post(
-            `${API_BASE_URL}/api/v1/auth/refresh`,
-            {},
-            {
-              headers: {
-                Authorization: `Bearer ${refreshTokenValue}`,
-                "Content-Type": "application/json",
-              },
-            }
-          );
-
-          const { access_token } = response.data;
-          useAuthStore.getState().updateAccessToken(access_token);
+          const newToken = await refreshToken();
           isRefreshing = false;
-          onTokenRefreshed(access_token);
+          onTokenRefreshed(newToken);
 
-          originalRequest.headers.Authorization = `Bearer ${access_token}`;
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
           return api(originalRequest);
         } catch {
           isRefreshing = false;

@@ -115,13 +115,14 @@ def create_app() -> FastAPI:
     # Idempotency middleware
     app.add_middleware(IdempotencyMiddleware)
 
-    # CORS
+    # CORS - allow credentials for httpOnly cookies (SEC-3 fix)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-        allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With"],
+        allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With", "X-CSRF-Token"],
+        expose_headers=["X-Request-ID"],
     )
 
     # Health endpoint

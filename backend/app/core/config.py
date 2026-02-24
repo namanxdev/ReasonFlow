@@ -46,6 +46,18 @@ class Settings(BaseSettings):
     # Agent Pipeline
     AGENT_PIPELINE_TIMEOUT: float = 60.0  # seconds
 
+    # CRM Configuration (CRM-2 fix)
+    CRM_PROVIDER: str = "database"  # Options: "database", "hubspot", "mock"
+    HUBSPOT_API_KEY: str = ""  # Required when CRM_PROVIDER=hubspot
+    HUBSPOT_BASE_URL: str = "https://api.hubapi.com"
+
+    # Email Processing Limits (VAL-4 fix)
+    MAX_EMAIL_BODY_SIZE: int = 50000  # 50KB max email body size
+
+    # Rate Limiting (RL-3, RL-4 fix)
+    EMAIL_SEND_RATE_LIMIT_PER_MINUTE: int = 30
+    BATCH_RATE_LIMIT_PER_MINUTE: int = 10
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: Any) -> list[str]:

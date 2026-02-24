@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Self
 
-from sqlalchemy import DateTime, func
+from sqlalchemy import DateTime, func, select
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -39,3 +40,60 @@ class UUIDPrimaryKeyMixin:
         primary_key=True,
         default=uuid.uuid4,
     )
+
+
+class SoftDeleteMixin:
+    """Mixin that adds soft delete capability to models (DB-NEW-5 fix).
+    
+    Instead of permanently deleting records, sets deleted_at timestamp.
+    Query filters automatically exclude soft-deleted records.
+    
+    Usage:
+        class MyModel(Base, SoftDeleteMixin):
+            __tablename__ = "my_table"
+            ...
+        
+        # Query only non-deleted (default)
+        result = await db.execute(select(MyModel))
+        
+        # Include deleted
+        result = await db.execute(select(MyModel).execution_options(include_deleted=True))
+        
+        # Soft delete
+        await obj.soft_delete(db)
+        
+        # Restore
+        await obj.restore(db)
+    """
+
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        default=None,
+        index=True,  # Index for efficient filtering
+    )
+
+    @property
+    def is_deleted(self) -> bool:
+        """Check if record is soft-deleted."""
+        return self.deleted_at is not None
+
+    async def soft_delete(self, db) -> None:
+        """Soft delete this record."""
+        self.deleted_at = datetime.now()
+        await db.flush()
+
+    async def restore(self, db) -> None:
+        """Restore a soft-deleted record."""
+        self.deleted_at = None
+        await db.flush()
+
+    @classmethod
+    def filter_not_deleted(cls, query):
+        """Add filter to exclude deleted records from query."""
+        return query.where(cls.deleted_at.is_(None))
+
+    @classmethod
+    def filter_deleted(cls, query):
+        """Add filter to include only deleted records."""
+        return query.where(cls.deleted_at.is_not(None))

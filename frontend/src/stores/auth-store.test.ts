@@ -7,24 +7,21 @@ describe('Auth Store', () => {
     useAuthStore.setState({
       user: null,
       accessToken: null,
-      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
     });
   });
 
   describe('login', () => {
-    it('should set user and tokens on login', () => {
+    it('should set user and token on login', () => {
       const user = { id: '1', email: 'test@example.com' };
       const accessToken = 'access-token';
-      const refreshToken = 'refresh-token';
 
-      useAuthStore.getState().login(user, accessToken, refreshToken);
+      useAuthStore.getState().login(user, accessToken);
 
       const state = useAuthStore.getState();
       expect(state.user).toEqual(user);
       expect(state.accessToken).toBe(accessToken);
-      expect(state.refreshToken).toBe(refreshToken);
       expect(state.isAuthenticated).toBe(true);
     });
   });
@@ -34,8 +31,7 @@ describe('Auth Store', () => {
       // First login
       useAuthStore.getState().login(
         { id: '1', email: 'test@example.com' },
-        'access-token',
-        'refresh-token'
+        'access-token'
       );
 
       // Then logout
@@ -44,7 +40,6 @@ describe('Auth Store', () => {
       const state = useAuthStore.getState();
       expect(state.user).toBeNull();
       expect(state.accessToken).toBeNull();
-      expect(state.refreshToken).toBeNull();
       expect(state.isAuthenticated).toBe(false);
     });
   });
@@ -54,8 +49,7 @@ describe('Auth Store', () => {
       // First login
       useAuthStore.getState().login(
         { id: '1', email: 'test@example.com' },
-        'old-access-token',
-        'refresh-token'
+        'old-access-token'
       );
 
       // Update access token
@@ -63,7 +57,6 @@ describe('Auth Store', () => {
 
       const state = useAuthStore.getState();
       expect(state.accessToken).toBe('new-access-token');
-      expect(state.refreshToken).toBe('refresh-token');
       expect(state.user).toEqual({ id: '1', email: 'test@example.com' });
       expect(state.isAuthenticated).toBe(true);
     });
