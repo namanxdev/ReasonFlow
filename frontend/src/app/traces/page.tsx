@@ -44,13 +44,28 @@ export default function TracesPage() {
     return () => clearTimeout(timer);
   }, [searchInput, queryClient]);
 
-  const { data, isLoading, isFetching } = useTraces(filters);
+  const { data, isLoading, isFetching, isPlaceholderData } = useTraces(filters);
 
   const traces = data?.items || [];
   const totalPages = data ? Math.ceil(data.total / data.per_page) || 1 : 1;
   const total = data?.total || 0;
   const page = filters.page || 1;
   const pageSize = filters.page_size || 25;
+
+  // Correct out-of-bounds page when real data arrives
+  useEffect(() => {
+    if (!data) return;
+    if (isPlaceholderData) return;
+    if (data.total === 0) return;
+
+    const maxPage = Math.ceil(data.total / data.per_page) || 1;
+    if (page > maxPage) {
+      setFilters((prev) => ({
+        ...prev,
+        page: maxPage,
+      }));
+    }
+  }, [data, page, isPlaceholderData]);
 
   const handleStatusChange = (value: string) => {
     setFilters((prev) => ({
@@ -122,7 +137,7 @@ export default function TracesPage() {
                 )}
               </div>
             </div>
-            {isFetching && (
+            {isPlaceholderData && isFetching && (
               <div className="absolute inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-10">
                 <Loader2 className="size-8 animate-spin text-violet-500" />
               </div>
@@ -132,14 +147,14 @@ export default function TracesPage() {
         </StaggerItem>
 
         {/* Pagination - always show when there's data */}
-        {data && data.total > 0 && (
+        {(data || isPlaceholderData) && (data?.total ?? 0) > 0 && (
           <StaggerItem>
             <Pagination
               currentPage={page}
               totalPages={totalPages}
-              totalItems={total}
+              totalItems={data?.total ?? 0}
               pageSize={pageSize}
-              isFetching={isFetching}
+              isFetching={isPlaceholderData && isFetching}
               itemLabel="traces"
               onPageChange={(p) =>
                 setFilters((prev) => ({ ...prev, page: p }))

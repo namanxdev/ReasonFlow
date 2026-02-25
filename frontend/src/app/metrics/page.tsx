@@ -118,7 +118,7 @@ export default function MetricsPage() {
           {/* Charts Row 2 */}
           <StaggerItem>
             <SectionCard className="p-5">
-              <AccuracyChart />
+              <AccuracyChart dateFrom={dateFrom || undefined} dateTo={dateTo || undefined} />
             </SectionCard>
           </StaggerItem>
       </StaggerContainer>

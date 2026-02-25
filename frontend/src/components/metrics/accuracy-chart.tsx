@@ -15,6 +15,11 @@ import {
   LabelList,
 } from "recharts";
 
+interface AccuracyChartProps {
+  dateFrom?: string;
+  dateTo?: string;
+}
+
 function SkeletonChart() {
   return (
     <Card>
@@ -52,8 +57,48 @@ function formatToolName(toolName: string): string {
     .join(" ");
 }
 
-export function AccuracyChart() {
-  const { data, isLoading } = useToolAccuracy();
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    name: string;
+    value: number;
+    payload: {
+      name: string;
+      successRate: number;
+      failureRate: number;
+      successfulCalls: number;
+      failedCalls: number;
+    };
+  }>;
+  label?: string;
+}
+
+function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+  if (!active || !payload || !payload.length) return null;
+  const data = payload[0].payload;
+  return (
+    <div
+      style={{
+        backgroundColor: "hsl(var(--card))",
+        border: "1px solid hsl(var(--border))",
+        borderRadius: "8px",
+        padding: "12px",
+        fontSize: "13px",
+      }}
+    >
+      <p style={{ fontWeight: 600, marginBottom: 4 }}>{label}</p>
+      <p style={{ color: "#22c55e" }}>
+        Success: {data.successRate.toFixed(1)}% ({data.successfulCalls} calls)
+      </p>
+      <p style={{ color: "#ef4444" }}>
+        Failure: {data.failureRate.toFixed(1)}% ({data.failedCalls} calls)
+      </p>
+    </div>
+  );
+}
+
+export function AccuracyChart({ dateFrom, dateTo }: AccuracyChartProps) {
+  const { data, isLoading } = useToolAccuracy(dateFrom, dateTo);
 
   if (isLoading) {
     return <SkeletonChart />;
@@ -63,12 +108,17 @@ export function AccuracyChart() {
     return <EmptyState />;
   }
 
-  const chartData = data.map((item) => ({
-    name: formatToolName(item.tool_name),
-    Success: item.successful_calls,
-    Failure: item.failed_calls,
-    successRate: item.success_rate,
-  }));
+  const chartData = data.map((item) => {
+    const successRate = item.success_rate * 100;
+    const failureRate = 100 - successRate;
+    return {
+      name: formatToolName(item.tool_name),
+      successRate,
+      failureRate,
+      successfulCalls: item.successful_calls,
+      failedCalls: item.failed_calls,
+    };
+  });
 
   return (
     <Card>
@@ -89,26 +139,22 @@ export function AccuracyChart() {
               stroke="hsl(var(--muted-foreground))"
               fontSize={12}
               tickMargin={8}
-              label={{ value: "Call Count", angle: -90, position: "insideLeft" }}
+              domain={[0, 100]}
+              tickFormatter={(value) => `${value}%`}
+              label={{ value: "Success Rate (%)", angle: -90, position: "insideLeft", offset: -5 }}
             />
-            <Tooltip
-              formatter={(value) => [value, ""]}
-              contentStyle={{
-                backgroundColor: "hsl(var(--card))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: "8px",
-              }}
-            />
+            <Tooltip content={<CustomTooltip />} />
             <Legend wrapperStyle={{ fontSize: "14px" }} />
-            <Bar dataKey="Success" stackId="a" fill="#22c55e">
+            <Bar dataKey="successRate" name="Success" stackId="a" fill="#22c55e" radius={[0, 0, 0, 0]}>
               <LabelList
                 dataKey="successRate"
                 position="top"
-                formatter={(value) => `${Math.round(Number(value) * 100)}%`}
+                formatter={(value: string | number | boolean | null | undefined) => `${Math.round(Number(value))}%`}
                 fontSize={12}
+                fill="hsl(var(--foreground))"
               />
             </Bar>
-            <Bar dataKey="Failure" stackId="a" fill="#ef4444" />
+            <Bar dataKey="failureRate" name="Failure" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>

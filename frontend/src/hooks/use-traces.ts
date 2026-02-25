@@ -6,7 +6,7 @@ export function useTraces(filters: TraceFilters = {}) {
   const { search, status, page = 1, page_size = 20 } = filters;
   return useQuery({
     queryKey: ["traces", filters],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       api
         .get<PaginatedResponse<TraceRun>>("/traces", {
           params: {
@@ -15,9 +15,10 @@ export function useTraces(filters: TraceFilters = {}) {
             search: search || undefined,
             status: status || undefined,
           },
+          signal,
         })
         .then((r) => r.data),
-    staleTime: 0,
+    staleTime: 10_000,
     refetchOnWindowFocus: false,
     placeholderData: (previousData) => previousData,
   });

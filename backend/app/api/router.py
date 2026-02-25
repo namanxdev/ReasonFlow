@@ -19,6 +19,10 @@ from app.api.routes import (
 
 api_router = APIRouter(dependencies=[Depends(rate_limit)])
 
+# WebSocket routes need a separate router — they don't have a Request object,
+# so the rate_limit dependency (which requires Request) can't be injected.
+ws_router = APIRouter()
+
 
 @api_router.get("/status", tags=["status"])
 async def api_status() -> dict[str, str]:
@@ -53,8 +57,8 @@ api_router.include_router(crm.router, prefix="/crm", tags=["crm"])
 # Email templates
 api_router.include_router(templates.router, prefix="/templates", tags=["templates"])
 
-# Real-time notifications (WebSocket)
-api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
+# Real-time notifications (WebSocket — mounted on ws_router, no rate_limit)
+ws_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 
 # Settings/Preferences
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])

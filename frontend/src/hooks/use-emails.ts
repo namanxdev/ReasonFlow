@@ -22,7 +22,7 @@ export function useEmails(filters: EmailFilters) {
           signal,
         })
         .then((r) => r.data),
-    staleTime: 0,
+    staleTime: 10_000,
     gcTime: 5 * 60 * 1000,
     // Real-time updates configuration
     refetchInterval: POLLING_INTERVAL,

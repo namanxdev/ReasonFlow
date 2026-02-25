@@ -31,12 +31,14 @@ export function useLatencyStats(dateFrom?: string, dateTo?: string) {
   });
 }
 
-export function useToolAccuracy() {
+export function useToolAccuracy(dateFrom?: string, dateTo?: string) {
   return useQuery({
-    queryKey: ["metrics", "tools"],
+    queryKey: ["metrics", "tools", dateFrom, dateTo],
     queryFn: () =>
       api
-        .get<{ tools: ToolAccuracy[] }>("/metrics/tools")
+        .get<{ tools: ToolAccuracy[] }>("/metrics/tools", {
+          params: { start: dateFrom, end: dateTo },
+        })
         .then((r) => r.data.tools),
   });
 }

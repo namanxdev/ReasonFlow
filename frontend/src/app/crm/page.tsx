@@ -221,7 +221,7 @@ export default function CrmPage() {
                       setContactPage(1);
                     }}
                     className="pl-9 h-12 bg-white/70 border-white/50 text-base"
-                    type="email"
+                    type="text"
                   />
                 </div>
                 <Button type="submit" disabled={!searchEmail.trim()} className="h-12 px-6 gap-2">
@@ -294,8 +294,22 @@ export default function CrmPage() {
             </StaggerItem>
           )}
 
+          {/* Select a contact prompt */}
+          {!activeEmail && !isEditing && (
+            <StaggerItem>
+              <SectionCard>
+                <div className="flex flex-col items-center gap-3 py-16">
+                  <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center">
+                    <ContactIcon className="size-8 text-indigo-400" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">Select a contact to view details</p>
+                </div>
+              </SectionCard>
+            </StaggerItem>
+          )}
+
           {/* Loading */}
-          {isLoading && (
+          {activeEmail && (isLoading || (!contact && !error && !isFetched)) && (
             <StaggerItem>
               <div className="flex items-center justify-center py-12">
                 <div className="relative">
