@@ -6,7 +6,7 @@ import uuid
 
 import pytest
 
-from app.models.email import Email, EmailStatus, EmailClassification
+from app.models.email import Email, EmailClassification, EmailStatus
 
 
 @pytest.mark.asyncio
@@ -77,9 +77,9 @@ class TestEmailEndpoints:
 
     async def test_get_email_wrong_user(self, auth_client, db_session):
         """Test getting email belonging to another user."""
-        from app.models.user import User
         from app.core.security import hash_password
-        
+        from app.models.user import User
+
         # Create another user
         other_user = User(
             email="other@example.com",
@@ -87,7 +87,7 @@ class TestEmailEndpoints:
         )
         db_session.add(other_user)
         await db_session.flush()
-        
+
         # Create email for other user
         email = Email(
             id=uuid.uuid4(),

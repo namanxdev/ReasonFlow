@@ -4,23 +4,30 @@ Revision ID: 005_contacts
 Revises: 004_idempotency_keys
 Create Date: 2026-02-24
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 
+from alembic import op
+
 revision: str = "005_contacts"
-down_revision: Union[str, None] = "004_idempotency_keys"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "004_idempotency_keys"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     op.create_table(
         "contacts",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "id", UUID(as_uuid=True), primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
+        sa.Column(
+            "user_id", UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False,
+        ),
         sa.Column("email", sa.String(320), nullable=False),
         sa.Column("name", sa.String(256), nullable=True),
         sa.Column("company", sa.String(256), nullable=True),

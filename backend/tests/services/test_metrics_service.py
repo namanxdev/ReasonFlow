@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.models.email import EmailClassification, EmailStatus
+from app.models.email import EmailClassification
 from tests.services.conftest import make_agent_log, make_email, make_tool_execution
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -125,8 +124,8 @@ async def test_get_intent_distribution_with_date_range(mock_db):
     result_mock.all.return_value = []
     mock_db.execute = AsyncMock(return_value=result_mock)
 
-    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    end = datetime(2026, 1, 31, tzinfo=timezone.utc)
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    end = datetime(2026, 1, 31, tzinfo=UTC)
 
     result = await get_intent_distribution(mock_db, uuid.uuid4(), start, end)
 

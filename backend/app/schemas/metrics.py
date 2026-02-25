@@ -22,7 +22,7 @@ class MetricsDateRange(BaseModel):
     )
 
     @model_validator(mode="after")
-    def end_must_be_after_start(self) -> "MetricsDateRange":
+    def end_must_be_after_start(self) -> MetricsDateRange:
         if self.start is not None and self.end is not None:
             if self.end < self.start:
                 raise ValueError("'end' must be greater than or equal to 'start'")
@@ -113,6 +113,12 @@ class SummaryStats(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     total_emails_processed: int = Field(ge=0, description="Total emails that have been processed")
-    average_response_time_ms: float = Field(ge=0.0, description="Mean end-to-end agent latency in ms")
-    approval_rate: float = Field(ge=0.0, le=1.0, description="Fraction of drafts that were approved (0–1)")
-    human_review_rate: float = Field(ge=0.0, le=1.0, description="Fraction of drafts requiring human review (0–1)")
+    average_response_time_ms: float = Field(
+        ge=0.0, description="Mean end-to-end agent latency in ms"
+    )
+    approval_rate: float = Field(
+        ge=0.0, le=1.0, description="Fraction of drafts that were approved (0\u20131)"
+    )
+    human_review_rate: float = Field(
+        ge=0.0, le=1.0, description="Fraction of drafts requiring human review (0\u20131)"
+    )

@@ -21,7 +21,6 @@ from functools import partial, wraps
 from typing import Any, Literal
 
 from fastapi import HTTPException
-
 from langgraph.graph import END, START, StateGraph
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,27 +47,27 @@ _graph_lock = asyncio.Lock()
 
 async def get_compiled_graph(db: AsyncSession | None = None) -> Any:
     """Get or create cached compiled graph.
-    
+
     This function implements a thread-safe singleton pattern for the compiled
     LangGraph. The graph is built once and cached at module level to avoid
     rebuilding on every email processing request.
-    
+
     Args:
         db: Optional async database session injected at graph build time.
-        
+
     Returns:
         A compiled LangGraph ``CompiledGraph`` ready for ``.ainvoke()``.
     """
     global _compiled_graph
-    
+
     if _compiled_graph is not None:
         return _compiled_graph
-    
+
     async with _graph_lock:
         # Double-check pattern to prevent race conditions
         if _compiled_graph is not None:
             return _compiled_graph
-        
+
         _compiled_graph = _build_graph(db)
         return _compiled_graph
 
@@ -606,7 +605,7 @@ async def process_email(
             compiled.ainvoke(initial_state),
             timeout=settings.AGENT_PIPELINE_TIMEOUT,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error(
             "Agent pipeline timed out for email_id=%s after %.1f seconds",
             email_id,

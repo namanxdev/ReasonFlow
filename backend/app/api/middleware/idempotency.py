@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import Request, Response
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
 

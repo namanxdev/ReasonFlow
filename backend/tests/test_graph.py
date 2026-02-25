@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-import pytest
+from langgraph.graph import END
 
 from app.agent.graph import _route_after_classify, _route_after_decide, _route_after_review
 from app.agent.state import AgentState
-from langgraph.graph import END
 
 
 def _state(**kwargs: Any) -> AgentState:

@@ -7,7 +7,6 @@ Suitable for single-server MVP deployments. State resets on server restart.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -58,7 +57,10 @@ async def publish_event(user_id: UUID, event_type: EventType, data: dict) -> Non
             except asyncio.QueueFull:
                 logger.warning("Event queue full for user %s, dropping event", user_id)
         if queues:
-            logger.debug("Published event %s to %d subscribers for user %s", event_type.value, len(queues), user_id)
+            logger.debug(
+                "Published event %s to %d subscribers for user %s",
+                event_type.value, len(queues), user_id,
+            )
     except Exception as exc:
         # Log but don't raise - notifications should not break core functionality
         logger.warning("Failed to publish event %s for user %s: %s", event_type.value, user_id, exc)

@@ -103,16 +103,16 @@ async def email_send_rate_limit(
     request: Request,
 ) -> None:
     """Rate limiter for email sending endpoints.
-    
+
     Prevents abuse of email sending functionality.
     Default: 30 emails per minute per user.
     """
     user = getattr(request.state, "user", None)
     if user is not None:
-        identifier = f"email:user:{user.id}"
+        pass
     else:
-        identifier = f"email:ip:{request.client.host}" if request.client else "email:ip:unknown"
-    
+        pass
+
     await rate_limit(request, limit=EMAIL_SEND_RATE_LIMIT_PER_MINUTE)
 
 
@@ -121,14 +121,14 @@ async def batch_rate_limit(
     request: Request,
 ) -> None:
     """Rate limiter for batch operation endpoints.
-    
+
     Batch operations are resource-intensive and need stricter limits.
     Default: 10 batch requests per minute per user.
     """
     user = getattr(request.state, "user", None)
     if user is not None:
-        identifier = f"batch:user:{user.id}"
+        pass
     else:
-        identifier = f"batch:ip:{request.client.host}" if request.client else "batch:ip:unknown"
-    
+        pass
+
     await rate_limit(request, limit=BATCH_RATE_LIMIT_PER_MINUTE)

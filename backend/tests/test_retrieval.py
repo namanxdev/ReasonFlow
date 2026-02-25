@@ -17,7 +17,6 @@ from app.retrieval.context_builder import ContextBuilder, _build_context_strings
 from app.retrieval.embeddings import EmbeddingService
 from app.retrieval.vector_store import PgVectorStore, _cosine_similarity
 
-
 # ---------------------------------------------------------------------------
 # Shared fixtures
 # ---------------------------------------------------------------------------
@@ -41,12 +40,12 @@ class TestEmbeddingService:
         """Patch GoogleGenerativeAIEmbeddings so no real API call is made."""
         with patch(
             "app.retrieval.embeddings.GoogleGenerativeAIEmbeddings"
-        ) as MockCls:
+        ) as mock_cls:
             instance = MagicMock()
             instance.aembed_documents = AsyncMock(
                 return_value=[_make_vector(0.1)]
             )
-            MockCls.return_value = instance
+            mock_cls.return_value = instance
             yield instance
 
     async def test_create_embedding_returns_vector(self, mock_lc_embeddings):
@@ -103,15 +102,15 @@ class TestEmbeddingService:
         """Model name supplied to EmbeddingService is forwarded to LangChain."""
         with patch(
             "app.retrieval.embeddings.GoogleGenerativeAIEmbeddings"
-        ) as MockCls:
+        ) as mock_cls:
             instance = MagicMock()
             instance.aembed_documents = AsyncMock(return_value=[_make_vector()])
-            MockCls.return_value = instance
+            mock_cls.return_value = instance
 
             svc = EmbeddingService(model="models/text-embedding-004")
             await svc.create_embedding("test")
 
-            call_kwargs = MockCls.call_args[1]
+            call_kwargs = mock_cls.call_args[1]
             assert call_kwargs["model"] == "models/text-embedding-004"
 
 
@@ -489,11 +488,11 @@ class TestContextBuilder:
             mock_crm.get_contact = AsyncMock(return_value=None)
             mock_crm_factory.return_value = mock_crm
 
-            with patch("app.retrieval.context_builder.CalendarClient") as MockCal:
+            with patch("app.retrieval.context_builder.CalendarClient") as mock_cal:
                 ctx = await builder.build_context(
                     email=email, user_id=uid, db_session=mock_db
                 )
-                MockCal.assert_not_called()
+                mock_cal.assert_not_called()
 
         assert ctx["calendar_events"] == []
 
@@ -531,10 +530,10 @@ class TestContextBuilder:
             mock_crm.get_contact = AsyncMock(return_value=None)
             mock_crm_factory.return_value = mock_crm
 
-            with patch("app.retrieval.context_builder.CalendarClient") as MockCal:
+            with patch("app.retrieval.context_builder.CalendarClient") as mock_cal:
                 mock_cal_instance = AsyncMock()
                 mock_cal_instance.get_free_slots = AsyncMock(return_value=free_slots)
-                MockCal.return_value = mock_cal_instance
+                mock_cal.return_value = mock_cal_instance
 
                 ctx = await builder.build_context(
                     email=meeting_email, user_id=uid, db_session=mock_db

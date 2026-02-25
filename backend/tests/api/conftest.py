@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -12,10 +11,9 @@ from httpx import ASGITransport, AsyncClient
 
 from app.core.config import settings
 from app.core.database import Base, async_engine, async_session_factory
+from app.core.security import create_access_token, hash_password
 from app.main import create_app
 from app.models.user import User
-from app.core.security import hash_password, create_access_token
-
 
 # Override settings for testing
 settings.DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/reasonflow_test"

@@ -283,9 +283,11 @@ async def get_summary_stats(
         .where(Email.user_id == user_id)
         .scalar_subquery()
     )
-    log_query = select(AgentLog.trace_id, func.sum(AgentLog.latency_ms).label("total_latency")).where(
-        AgentLog.email_id.in_(email_id_subquery)
-    ).group_by(AgentLog.trace_id)
+    log_query = (
+        select(AgentLog.trace_id, func.sum(AgentLog.latency_ms).label("total_latency"))
+        .where(AgentLog.email_id.in_(email_id_subquery))
+        .group_by(AgentLog.trace_id)
+    )
     log_result = await db.execute(log_query)
     trace_latencies = [row.total_latency for row in log_result.all()]
     average_response_time_ms = (
@@ -324,7 +326,9 @@ async def get_summary_stats(
     review_result = await db.execute(review_query)
     review_count = review_result.scalar() or 0
 
-    human_review_rate = (review_count / total_emails_processed) if total_emails_processed > 0 else 0.0
+    human_review_rate = (
+        (review_count / total_emails_processed) if total_emails_processed > 0 else 0.0
+    )
 
     return {
         "total_emails_processed": total_emails_processed,

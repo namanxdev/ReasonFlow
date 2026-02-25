@@ -4,16 +4,17 @@ Revision ID: 002_user_preferences
 Revises: 001_initial
 Create Date: 2026-02-19
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
+
+import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSON, UUID
 
 from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID, JSON
 
 revision: str = "002_user_preferences"
-down_revision: Union[str, None] = "001_initial"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "001_initial"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

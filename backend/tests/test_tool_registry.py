@@ -121,9 +121,12 @@ async def test_send_email_tool_with_mock_gmail_client() -> None:
             AsyncMock(return_value=fake_creds),
         ),
     ):
-        result = await fn(
-            {"to": "alice@example.com", "subject": "Re: Hi", "body": "Hello back", "user_id": "00000000-0000-0000-0000-000000000001"}
-        )
+        result = await fn({
+            "to": "alice@example.com",
+            "subject": "Re: Hi",
+            "body": "Hello back",
+            "user_id": "00000000-0000-0000-0000-000000000001",
+        })
 
     assert result["status"] == "sent"
     assert result["message_id"] == "msg-001"

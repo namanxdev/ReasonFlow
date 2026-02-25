@@ -34,8 +34,12 @@ class DatabaseCRM(CRMBase):
             "notes": contact.notes,
             "tags": contact.tags or [],
             "metadata": contact.metadata_ or {},
-            "last_contacted_at": contact.last_contacted_at.isoformat() if contact.last_contacted_at else None,
-            "last_interaction": contact.last_contacted_at.isoformat() if contact.last_contacted_at else None,
+            "last_contacted_at": (
+                contact.last_contacted_at.isoformat() if contact.last_contacted_at else None
+            ),
+            "last_interaction": (
+                contact.last_contacted_at.isoformat() if contact.last_contacted_at else None
+            ),
             "created_at": contact.created_at.isoformat() if contact.created_at else None,
             "updated_at": contact.updated_at.isoformat() if contact.updated_at else None,
         }
@@ -99,7 +103,9 @@ class DatabaseCRM(CRMBase):
         self, page: int = 1, per_page: int = 25, query: str | None = None
     ) -> tuple[list[dict[str, Any]], int]:
         base = select(Contact).where(Contact.user_id == self._user_id)
-        count_base = select(func.count()).select_from(Contact).where(Contact.user_id == self._user_id)
+        count_base = (
+            select(func.count()).select_from(Contact).where(Contact.user_id == self._user_id)
+        )
 
         if query:
             pattern = f"%{query}%"

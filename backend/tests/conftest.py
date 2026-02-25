@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -24,7 +24,7 @@ def sample_email() -> dict[str, Any]:
         "body": "Hi, could we schedule a meeting for next Tuesday at 2pm?",
         "sender": "alice@example.com",
         "recipient": "bob@example.com",
-        "received_at": datetime.now(tz=timezone.utc).isoformat(),
+        "received_at": datetime.now(tz=UTC).isoformat(),
     }
 
 

@@ -10,7 +10,6 @@ import pytest
 from app.models.email import EmailStatus
 from tests.services.conftest import make_email, make_user
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -168,7 +167,6 @@ async def test_approve_draft_raises_400_if_no_gmail_connection(mock_db):
 async def test_approve_draft_raises_502_on_gmail_error(mock_db):
     """approve_draft() raises HTTP 502 when Gmail send fails."""
     import httpx as real_httpx
-
     from fastapi import HTTPException
 
     from app.services.draft_service import approve_draft
@@ -266,7 +264,7 @@ async def test_edit_draft_updates_draft_response(mock_db):
     mock_db.execute = AsyncMock(return_value=_scalars_first(email))
     mock_db.refresh = AsyncMock()
 
-    updated = await edit_draft(mock_db, user_id, email.id, "new text")
+    await edit_draft(mock_db, user_id, email.id, "new text")
 
     assert email.draft_response == "new text"
     mock_db.flush.assert_awaited()

@@ -8,8 +8,8 @@ import logging
 import threading
 from typing import Any
 
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.core.config import settings
@@ -70,7 +70,7 @@ class GeminiClient:
         if cleaned.startswith("```"):
             # Remove markdown code fences
             lines = cleaned.split("\n")
-            lines = [l for l in lines if not l.strip().startswith("```")]
+            lines = [line for line in lines if not line.strip().startswith("```")]
             cleaned = "\n".join(lines)
         try:
             return json.loads(cleaned)
@@ -173,19 +173,19 @@ _current_api_key: str | None = None
 
 def get_gemini_client() -> GeminiClient:
     """Get or create the GeminiClient singleton with config-rotation safety.
-    
+
     This function ensures that:
     1. Only one client instance exists at a time (singleton pattern)
     2. If the API key changes, a new client is created with the new key
     3. Thread-safe access for concurrent requests
-    
+
     Returns:
         GeminiClient instance configured with current settings
     """
     global _gemini_client, _current_api_key
-    
+
     current_key = settings.GEMINI_API_KEY
-    
+
     with _config_lock:
         # Check if we need to recreate the client:
         # 1. No client exists yet
@@ -193,22 +193,22 @@ def get_gemini_client() -> GeminiClient:
         if _gemini_client is None or _current_api_key != current_key:
             if _current_api_key != current_key and _gemini_client is not None:
                 logger.info("Gemini API key changed, recreating client instance")
-            
+
             _gemini_client = GeminiClient()
             _current_api_key = current_key
             logger.debug("Created new GeminiClient instance")
-    
+
     return _gemini_client
 
 
 def reset_gemini_client() -> None:
     """Force reset the Gemini client singleton.
-    
+
     This can be called after configuration changes to ensure
     the next call to get_gemini_client() creates a fresh instance.
     """
     global _gemini_client, _current_api_key
-    
+
     with _config_lock:
         _gemini_client = None
         _current_api_key = None

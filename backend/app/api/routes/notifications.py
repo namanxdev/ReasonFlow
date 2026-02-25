@@ -27,7 +27,7 @@ def create_ws_message(
     error: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Create a standardized WebSocket message (ERR-5 fix).
-    
+
     All WebSocket messages follow a consistent structure:
     {
         "type": "message_type",
@@ -35,12 +35,12 @@ def create_ws_message(
         "data": {...} | null,
         "error": {...} | null
     }
-    
+
     Args:
         msg_type: Type of message (e.g., "connected", "error", "event")
         data: Optional data payload
         error: Optional error details
-        
+
     Returns:
         Standardized message dictionary
     """
@@ -58,12 +58,12 @@ def create_ws_error(
     details: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Create a standardized WebSocket error message (ERR-5 fix).
-    
+
     Args:
         code: Error code (e.g., "AUTH_FAILED", "SERVER_ERROR")
         message: Human-readable error message
         details: Optional error details
-        
+
     Returns:
         Error message dictionary
     """

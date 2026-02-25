@@ -28,7 +28,6 @@ async def _get_credentials_from_user_id(user_id: str) -> dict[str, Any] | None:
     import uuid
 
     from sqlalchemy import select
-    from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.core.database import async_session_factory
     from app.models.user import User

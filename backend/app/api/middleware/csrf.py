@@ -37,7 +37,7 @@ EXEMPT_PATHS = frozenset({
 
 def _generate_csrf_token() -> str:
     """Generate a new CSRF token.
-    
+
     Returns:
         A random URL-safe token string
     """
@@ -46,10 +46,10 @@ def _generate_csrf_token() -> str:
 
 def _should_skip_csrf(request: Request) -> bool:
     """Check if CSRF check should be skipped for this request.
-    
+
     Args:
         request: The incoming request
-        
+
     Returns:
         True if CSRF check should be skipped
     """
@@ -67,13 +67,13 @@ def _should_skip_csrf(request: Request) -> bool:
 
 class CSRFMiddleware(BaseHTTPMiddleware):
     """Middleware for CSRF protection using double-submit cookie pattern.
-    
+
     On each request:
     1. If no CSRF cookie exists, generate a new token and set it as a cookie
     2. For state-changing methods (POST, PUT, DELETE, PATCH):
        - Verify the X-CSRF-Token header matches the cookie value
        - If mismatch, return 403 Forbidden
-    
+
     The frontend should:
     1. Read the csrf_token cookie
     2. Include it as the X-CSRF-Token header for all state-changing requests
@@ -151,13 +151,13 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
 def get_csrf_token(request: Request) -> str:
     """Get the current CSRF token for the request.
-    
+
     This can be used by endpoints that need to return the token
     to the frontend (e.g., in HTML forms).
-    
+
     Args:
         request: The current request
-        
+
     Returns:
         The current CSRF token
     """

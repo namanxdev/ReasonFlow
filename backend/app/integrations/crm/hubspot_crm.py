@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 
 class HubSpotCRM(CRMBase):
     """HubSpot CRM adapter for production use.
-    
+
     This adapter uses HubSpot's REST API to manage contacts.
     Requires HUBSPOT_API_KEY in settings.
-    
+
     Features:
     - Contact CRUD operations
     - Contact search
@@ -38,7 +38,7 @@ class HubSpotCRM(CRMBase):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        
+
         if not self.api_key:
             raise ValueError("HUBSPOT_API_KEY is required for HubSpotCRM")
 
@@ -51,7 +51,7 @@ class HubSpotCRM(CRMBase):
     ) -> dict[str, Any]:
         """Make an HTTP request to HubSpot API."""
         url = f"{self.base_url}{endpoint}"
-        
+
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.request(
@@ -78,7 +78,7 @@ class HubSpotCRM(CRMBase):
 
     async def get_contact(self, email: str) -> dict[str, Any] | None:
         """Get contact by email from HubSpot.
-        
+
         Uses HubSpot's search API to find contact by email.
         """
         try:
@@ -97,20 +97,20 @@ class HubSpotCRM(CRMBase):
                 ],
                 "limit": 1,
             }
-            
+
             result = await self._request(
                 "POST",
                 "/crm/v3/objects/contacts/search",
                 json_data=search_payload,
             )
-            
+
             items = result.get("results", [])
             if not items:
                 return None
-            
+
             contact = items[0]
             properties = contact.get("properties", {})
-            
+
             return {
                 "id": contact.get("id"),
                 "email": properties.get("email", email),
@@ -130,7 +130,7 @@ class HubSpotCRM(CRMBase):
 
     async def update_contact(self, email: str, data: dict[str, Any]) -> dict[str, Any]:
         """Create or update contact in HubSpot.
-        
+
         Uses HubSpot's create or update endpoint.
         """
         try:
@@ -138,13 +138,13 @@ class HubSpotCRM(CRMBase):
             properties: dict[str, Any] = {
                 "email": email.lower(),
             }
-            
+
             if name := data.get("name"):
                 parts = name.split(" ", 1)
                 properties["firstname"] = parts[0]
                 if len(parts) > 1:
                     properties["lastname"] = parts[1]
-            
+
             if first_name := data.get("first_name"):
                 properties["firstname"] = first_name
             if last_name := data.get("last_name"):
@@ -157,14 +157,14 @@ class HubSpotCRM(CRMBase):
                 properties["phone"] = phone
             if notes := data.get("notes"):
                 properties["notes"] = notes
-            
+
             # Check if contact exists
             existing = await self.get_contact(email)
-            
+
             if existing:
                 # Update existing contact
                 contact_id = existing["id"]
-                result = await self._request(
+                await self._request(
                     "PATCH",
                     f"/crm/v3/objects/contacts/{contact_id}",
                     json_data={"properties": properties},
@@ -172,17 +172,17 @@ class HubSpotCRM(CRMBase):
                 logger.info("Updated HubSpot contact: %s", email)
             else:
                 # Create new contact
-                result = await self._request(
+                await self._request(
                     "POST",
                     "/crm/v3/objects/contacts",
                     json_data={"properties": properties},
                 )
                 logger.info("Created HubSpot contact: %s", email)
-            
+
             # Return updated contact
             updated = await self.get_contact(email)
             return updated or {"email": email, **data}
-            
+
         except Exception as e:
             logger.error("Failed to update HubSpot contact: %s", e)
             # Return local data as fallback
@@ -190,7 +190,7 @@ class HubSpotCRM(CRMBase):
 
     async def search_contacts(self, query: str) -> list[dict[str, Any]]:
         """Search contacts in HubSpot.
-        
+
         Searches across email, firstname, lastname, and company.
         """
         try:
@@ -226,22 +226,25 @@ class HubSpotCRM(CRMBase):
                 ],
                 "limit": 50,
             }
-            
+
             result = await self._request(
                 "POST",
                 "/crm/v3/objects/contacts/search",
                 json_data=search_payload,
             )
-            
+
             items = result.get("results", [])
             contacts = []
-            
+
             for item in items:
                 properties = item.get("properties", {})
                 contacts.append({
                     "id": item.get("id"),
                     "email": properties.get("email", ""),
-                    "name": f"{properties.get('firstname', '')} {properties.get('lastname', '')}".strip(),
+                    "name": " ".join(filter(None, [
+                        properties.get("firstname", ""),
+                        properties.get("lastname", ""),
+                    ])),
                     "first_name": properties.get("firstname", ""),
                     "last_name": properties.get("lastname", ""),
                     "company": properties.get("company", ""),
@@ -250,16 +253,16 @@ class HubSpotCRM(CRMBase):
                     "tags": [],
                     "source": "hubspot",
                 })
-            
+
             return contacts
-            
+
         except Exception as e:
             logger.error("Failed to search HubSpot contacts: %s", e)
             return []
 
     async def get_company(self, company_id: str) -> dict[str, Any] | None:
         """Get company details from HubSpot.
-        
+
         Useful for enriching contact data with company information.
         """
         try:
@@ -267,7 +270,7 @@ class HubSpotCRM(CRMBase):
                 "GET",
                 f"/crm/v3/objects/companies/{company_id}",
             )
-            
+
             properties = result.get("properties", {})
             return {
                 "id": result.get("id"),

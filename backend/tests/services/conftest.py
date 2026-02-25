@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.models.email import EmailClassification, EmailStatus
-
 
 # ---------------------------------------------------------------------------
 # Database session mock (overrides root conftest for services sub-package)
@@ -49,8 +48,8 @@ def make_user(
         oauth_token_encrypted=oauth_token_encrypted,
         oauth_refresh_token_encrypted=oauth_refresh_token_encrypted,
         emails=[],
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
 
 
@@ -75,14 +74,14 @@ def make_email(
         body=body,
         sender=sender,
         recipient="me@example.com",
-        received_at=datetime.now(timezone.utc),
+        received_at=datetime.now(UTC),
         classification=classification,
         confidence=confidence,
         status=status,
         draft_response=draft_response,
         agent_logs=[],
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
 
 
@@ -108,8 +107,8 @@ def make_agent_log(
         input_state=input_state,
         output_state=output_state,
         tool_executions=[],
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
 
 
@@ -130,8 +129,8 @@ def make_tool_execution(
         success=success,
         error_message=error_message,
         latency_ms=latency_ms,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
 
 

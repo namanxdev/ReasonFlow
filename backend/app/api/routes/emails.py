@@ -5,11 +5,12 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.models.email import EmailClassification, EmailStatus
+from app.models.email import Email, EmailClassification, EmailStatus
 from app.models.user import User
 from app.schemas.email import (
     EmailDetailResponse,
@@ -20,8 +21,6 @@ from app.schemas.email import (
     EmailStatsResponse,
 )
 from app.services import email_service
-from sqlalchemy import func, select
-from app.models.email import Email
 
 router = APIRouter()
 
@@ -112,9 +111,9 @@ async def get_email_stats(
         .group_by(Email.status)
     )
 
-    counts = {status: 0 for status in EmailStatus}
-    for status, count in result.all():
-        counts[status] = count
+    counts = {s: 0 for s in EmailStatus}
+    for email_status, count in result.all():
+        counts[email_status] = count
 
     return EmailStatsResponse(
         pending=counts.get(EmailStatus.PENDING, 0),

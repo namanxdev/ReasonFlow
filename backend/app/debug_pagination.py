@@ -1,10 +1,11 @@
 import asyncio
 import os
 import sys
-from sqlalchemy import select, func
+
+from sqlalchemy import func, select
+
 from app.core.database import async_session_maker
 from app.models.email import Email
-from app.api.router import api_router  # Just to ensure models are imported
 
 # Add backend directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -35,7 +36,7 @@ async def debug_pagination():
         print(f"Page 2 (limit 10): {len(items2)} items")
         for e in items2:
             print(f" - {e.id} ({e.received_at})")
-        
+
         # Check if page 2 items are different from page 1
         ids1 = {e.id for e in items1}
         ids2 = {e.id for e in items2}

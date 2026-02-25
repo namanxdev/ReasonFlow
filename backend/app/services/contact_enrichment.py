@@ -22,7 +22,9 @@ PERSONAL_DOMAINS = frozenset({
 
 # Title patterns to extract from email signatures
 TITLE_PATTERNS = [
-    r'(?i)(?:^|\n|\|)\s*([A-Z][a-zA-Z\s]{2,30}?)(?:\s*,\s*(?:MBA|PhD|MD|JD|CPA|CFA))?\s*(?:at|@|with)\s+',  # Name at Company
+    # Name at Company
+    r'(?i)(?:^|\n|\|)\s*([A-Z][a-zA-Z\s]{2,30}?)'
+    r'(?:\s*,\s*(?:MBA|PhD|MD|JD|CPA|CFA))?\s*(?:at|@|with)\s+',
     r'(?i)(?:title|position)\s*[:\-]\s*([^\n]{2,50})',
 ]
 
@@ -47,7 +49,7 @@ def is_business_email(email: str) -> bool:
 
 def extract_company_from_domain(email: str) -> str:
     """Extract potential company name from email domain.
-    
+
     Examples:
         john@acme.com -> Acme
         jane@acme-corp.co.uk -> Acme Corp
@@ -56,7 +58,7 @@ def extract_company_from_domain(email: str) -> str:
     domain = extract_domain(email)
     if not domain or domain in PERSONAL_DOMAINS:
         return ""
-    
+
     # Remove subdomains (e.g., api.hubspot.com -> hubspot.com)
     parts = domain.split(".")
     if len(parts) > 2:
@@ -67,18 +69,18 @@ def extract_company_from_domain(email: str) -> str:
             main_domain = parts[-2]
     else:
         main_domain = parts[0]
-    
+
     # Clean up and format company name
     company = main_domain.replace("-", " ").replace("_", " ")
     company = re.sub(r'\d+$', '', company)  # Remove trailing numbers
     company = company.strip().title()
-    
+
     return company
 
 
 def extract_name_from_sender(sender: str) -> tuple[str, str]:
     """Extract first and last name from sender string.
-    
+
     Examples:
         "John Doe" -> ("John", "Doe")
         "john@example.com" -> ("", "")
@@ -89,10 +91,10 @@ def extract_name_from_sender(sender: str) -> tuple[str, str]:
         name_part = sender.split("<")[0].strip().strip('"')
     else:
         name_part = sender.strip()
-    
+
     if not name_part or "@" in name_part:
         return "", ""
-    
+
     # Handle "Last, First" format
     if "," in name_part:
         parts = name_part.split(",", 1)
@@ -100,12 +102,12 @@ def extract_name_from_sender(sender: str) -> tuple[str, str]:
             last = parts[0].strip()
             first = parts[1].strip()
             return first, last
-    
+
     # Handle "First Last" format
     parts = name_part.rsplit(" ", 1)
     if len(parts) == 2:
         return parts[0], parts[1]
-    
+
     # Single name
     return name_part, ""
 
@@ -140,30 +142,30 @@ def enrich_contact_data(
     body: str = "",
 ) -> dict[str, Any]:
     """Enrich contact data from available information.
-    
+
     This function extracts as much information as possible from
     the email address, sender name, and body to populate CRM fields.
-    
+
     Args:
         email: The contact's email address
         sender: The sender string (e.g., "John Doe <john@example.com>")
         body: Optional email body for additional extraction
-        
+
     Returns:
         Dictionary with enriched contact data
     """
     first_name, last_name = extract_name_from_sender(sender)
-    
+
     # Try to get company from domain
     company = extract_company_from_domain(email)
-    
+
     # If body provided, try to extract more info
     title = ""
     if body:
         title = extract_title_from_body(body)
         if not company:
             company = extract_company_from_body(body)
-    
+
     result = {
         "first_name": first_name,
         "last_name": last_name,
@@ -173,7 +175,7 @@ def enrich_contact_data(
         "is_business_email": is_business_email(email),
         "domain": extract_domain(email),
     }
-    
+
     logger.debug("Enriched contact data for %s: %s", email, result)
     return result
 

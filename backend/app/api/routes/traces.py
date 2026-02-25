@@ -29,7 +29,9 @@ async def list_traces(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     search: str | None = Query(None, description="Search by email subject"),
-    status: str | None = Query(None, description="Filter by trace status: completed, failed, processing"),
+    status: str | None = Query(
+        None, description="Filter by trace status: completed, failed, processing"
+    ),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TraceListResponse:

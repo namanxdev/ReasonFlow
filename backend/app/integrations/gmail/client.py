@@ -7,8 +7,9 @@ import base64
 import datetime
 import logging
 import time
+from collections.abc import Callable
 from email.mime.text import MIMEText
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 from tenacity import (
@@ -18,8 +19,6 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential,
 )
-
-from app.utils.sanitize import sanitize_html, strip_html_tags
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +126,7 @@ class GmailClient:
 
     def _check_rate_limit(self, response: httpx.Response) -> None:
         """Check if response is a 429 rate limit error and raise GmailRateLimitError.
-        
+
         Respects the Retry-After header if present in the response.
         """
         if response.status_code == 429:
@@ -321,7 +320,7 @@ def _decode_body(payload: dict[str, Any]) -> str:
     Falls back to text/html (with tags stripped) if no plain part exists.
     For leaf payloads with body data, decodes and strips HTML.
     """
-    mime_type = payload.get("mimeType", "")
+    payload.get("mimeType", "")
     parts = payload.get("parts", [])
 
     # Multipart: try to find text/plain, then text/html, then recurse.

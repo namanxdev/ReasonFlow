@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app.integrations.crm.base import CRMBase
@@ -60,7 +60,7 @@ class MockCRM(CRMBase):
         existing = self._contacts.get(email, {"email": email})
         existing.update(data)
         existing["email"] = email
-        existing["last_interaction"] = datetime.now(tz=timezone.utc).isoformat()
+        existing["last_interaction"] = datetime.now(tz=UTC).isoformat()
         self._contacts[email] = existing
         logger.debug("MockCRM: updated contact email=%s", email)
         return dict(existing)

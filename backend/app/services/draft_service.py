@@ -15,7 +15,6 @@ from app.core.security import decrypt_oauth_token, encrypt_oauth_token
 from app.integrations.gmail.client import GmailClient
 from app.models.email import Email, EmailStatus
 from app.models.user import User
-from app.services.auth_service import refresh_user_gmail_token
 
 logger = logging.getLogger(__name__)
 

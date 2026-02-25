@@ -16,7 +16,7 @@ class AvailabilityRequest(BaseModel):
     end: datetime = Field(description="End of the time range to check")
 
     @model_validator(mode="after")
-    def end_must_be_after_start(self) -> "AvailabilityRequest":
+    def end_must_be_after_start(self) -> AvailabilityRequest:
         if self.end <= self.start:
             raise ValueError("'end' must be strictly after 'start'")
         return self
@@ -64,7 +64,7 @@ class CreateEventRequest(BaseModel):
     )
 
     @model_validator(mode="after")
-    def end_must_be_after_start(self) -> "CreateEventRequest":
+    def end_must_be_after_start(self) -> CreateEventRequest:
         if self.end <= self.start:
             raise ValueError("'end' must be strictly after 'start'")
         return self

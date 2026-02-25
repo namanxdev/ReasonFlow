@@ -39,7 +39,7 @@ async def test_register_creates_user_with_hashed_password(mock_db):
     mock_db.execute = AsyncMock(return_value=_make_scalar_result(None))
 
     with patch("app.services.auth_service.hash_password", return_value="hashed_pw") as mock_hash:
-        user = await register(mock_db, "new@example.com", "secret123")
+        await register(mock_db, "new@example.com", "secret123")
 
     mock_hash.assert_called_once_with("secret123")
     mock_db.add.assert_called_once()

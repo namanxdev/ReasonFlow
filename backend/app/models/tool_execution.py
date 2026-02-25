@@ -27,6 +27,6 @@ class ToolExecution(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     latency_ms: Mapped[float] = mapped_column(nullable=False, default=0.0)
 
     # Relationships
-    agent_log: Mapped["AgentLog"] = relationship(  # noqa: F821
+    agent_log: Mapped[AgentLog] = relationship(  # noqa: F821
         back_populates="tool_executions"
     )

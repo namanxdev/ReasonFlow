@@ -100,7 +100,11 @@ async def test_retrieve_node_skips_calendar_for_non_meeting() -> None:
     """Calendar lookup should be skipped for non-meeting classifications."""
     mock_cal_client = MagicMock()
     mock_cal_client.get_upcoming_events = AsyncMock(
-        return_value=[{"title": "Stand-up", "start": "2026-02-15T09:00:00", "end": "2026-02-15T09:30:00"}]
+        return_value=[{
+            "title": "Stand-up",
+            "start": "2026-02-15T09:00:00",
+            "end": "2026-02-15T09:30:00",
+        }]
     )
     mock_cal_module = MagicMock()
     mock_cal_module.CalendarClient = MagicMock(return_value=mock_cal_client)

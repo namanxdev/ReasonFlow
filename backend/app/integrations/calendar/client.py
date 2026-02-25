@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 import httpx
@@ -52,11 +52,11 @@ class CalendarClient:
     ) -> list[dict[str, Any]]:
         work_start = datetime(
             target_date.year, target_date.month, target_date.day,
-            work_hours[0], 0, 0, tzinfo=timezone.utc,
+            work_hours[0], 0, 0, tzinfo=UTC,
         )
         work_end = datetime(
             target_date.year, target_date.month, target_date.day,
-            work_hours[1], 0, 0, tzinfo=timezone.utc,
+            work_hours[1], 0, 0, tzinfo=UTC,
         )
 
         async with httpx.AsyncClient() as client:
@@ -121,9 +121,9 @@ class CalendarClient:
     ) -> list[dict[str, Any]]:
         """List calendar events within the given range."""
         if time_min.tzinfo is None:
-            time_min = time_min.replace(tzinfo=timezone.utc)
+            time_min = time_min.replace(tzinfo=UTC)
         if time_max.tzinfo is None:
-            time_max = time_max.replace(tzinfo=timezone.utc)
+            time_max = time_max.replace(tzinfo=UTC)
         async with httpx.AsyncClient() as client:
             await self._refresh_if_needed(client)
             response = await client.get(
@@ -159,7 +159,10 @@ class CalendarClient:
         busy = data.get("calendars", {}).get(PRIMARY_CALENDAR, {}).get("busy", [])
         has_conflict = len(busy) > 0
         if has_conflict:
-            logger.debug("Conflict detected between %s and %s: %s busy periods", start, end, len(busy))
+            logger.debug(
+                "Conflict detected between %s and %s: %s busy periods",
+                start, end, len(busy),
+            )
         return has_conflict
 
 

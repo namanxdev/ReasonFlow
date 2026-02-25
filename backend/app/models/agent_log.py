@@ -30,7 +30,7 @@ class AgentLog(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     latency_ms: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
     # Relationships
-    email: Mapped["Email"] = relationship(back_populates="agent_logs")  # noqa: F821
-    tool_executions: Mapped[list["ToolExecution"]] = relationship(  # noqa: F821
+    email: Mapped[Email] = relationship(back_populates="agent_logs")  # noqa: F821
+    tool_executions: Mapped[list[ToolExecution]] = relationship(  # noqa: F821
         back_populates="agent_log", cascade="all, delete-orphan"
     )

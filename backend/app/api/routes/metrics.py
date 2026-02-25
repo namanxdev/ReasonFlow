@@ -73,6 +73,7 @@ async def summary_stats(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> SummaryStats:
-    """Return high-level KPI summary: total processed, avg response time, approval & review rates."""
+    """Return high-level KPI summary: total processed, avg response time, approval & review rates.
+    """
     data = await metrics_service.get_summary_stats(db, user.id)
     return SummaryStats(**data)

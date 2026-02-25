@@ -187,7 +187,10 @@ async def handle_gmail_login(
     try:
         token_data = await exchange_code(code)
     except httpx.HTTPStatusError as exc:
-        logger.warning("Gmail OAuth code exchange failed: %s %s", exc.response.status_code, exc.response.text)
+        logger.warning(
+            "Gmail OAuth code exchange failed: %s %s",
+            exc.response.status_code, exc.response.text,
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired OAuth authorization code.",

@@ -102,7 +102,7 @@ class UserPreferencesUpdateRequest(BaseModel):
     @classmethod
     def validate_timezone(cls, v: str | None) -> str | None:
         """Validate timezone is a valid IANA timezone identifier.
-        
+
         Uses Python 3.9+ zoneinfo module with IANA timezone database.
         On Windows, requires 'tzdata' package to be installed.
         """

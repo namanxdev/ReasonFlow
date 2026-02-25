@@ -8,6 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.middleware.rate_limit import batch_rate_limit
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.email import Email
@@ -18,7 +19,6 @@ from app.schemas.batch import (
     BatchProcessRequest,
     BatchStatusResponse,
 )
-from app.api.middleware.rate_limit import batch_rate_limit
 from app.services import batch_service
 
 router = APIRouter()

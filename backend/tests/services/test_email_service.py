@@ -7,10 +7,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.models.email import EmailClassification, EmailStatus
+from app.models.email import EmailStatus
 from app.schemas.email import EmailFilterParams
 from tests.services.conftest import make_email, make_user
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -204,7 +203,7 @@ async def test_sync_emails_skips_duplicates(mock_db):
     from app.services.email_service import sync_emails
 
     user = make_user(oauth_token_encrypted="enc_token")
-    existing_email = make_email(gmail_id="gid-1")
+    make_email(gmail_id="gid-1")
     raw_emails = [
         {
             "gmail_id": "gid-1",
@@ -237,7 +236,6 @@ async def test_sync_emails_skips_duplicates(mock_db):
 async def test_sync_emails_raises_502_on_gmail_error(mock_db):
     """sync_emails() raises HTTP 502 when the Gmail API returns an error."""
     import httpx as real_httpx
-
     from fastapi import HTTPException
 
     from app.services.email_service import sync_emails

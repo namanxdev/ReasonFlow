@@ -75,9 +75,11 @@ class EmailCreate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    subject: str = Field(max_length=998, description="Email subject line (RFC 2822 limit)")  # RFC 2822 limit
+    # RFC 2822 limit
+    subject: str = Field(max_length=998, description="Email subject line (RFC 2822 limit)")
     body: str = Field(description="Full email body content")  # Validated below
-    sender: str = Field(max_length=320, description="Sender email address (RFC 5321 limit)")  # RFC 5321 limit
+    # RFC 5321 limit
+    sender: str = Field(max_length=320, description="Sender email address (RFC 5321 limit)")
 
     @field_validator("body")
     @classmethod

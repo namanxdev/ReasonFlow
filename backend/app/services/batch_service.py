@@ -7,7 +7,6 @@ Suitable for single-server MVP deployments. State resets on server restart.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import uuid
 from datetime import UTC, datetime

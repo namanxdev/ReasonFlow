@@ -74,7 +74,7 @@ async def login(
     use_cookies: bool = True,  # Set to False to get refresh_token in response body
 ) -> TokenResponse:
     """Validate credentials and issue a JWT access token.
-    
+
     By default, the refresh token is set as an httpOnly cookie for security.
     Set use_cookies=false to receive the refresh token in the response body (less secure).
     """
@@ -111,7 +111,7 @@ async def refresh(
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
     """Exchange a valid JWT for a fresh access token.
-    
+
     Supports both Authorization header and httpOnly cookie for refresh token.
     Cookie is preferred for security (SEC-3 fix).
     """
@@ -265,7 +265,7 @@ async def forgot_password(
 
     if user:
         # Generate reset token (short expiry: 15 minutes)
-        reset_token = create_password_reset_token({"sub": user.email})
+        create_password_reset_token({"sub": user.email})
         # TODO: Send email with reset link
         # For now, just log it
         logger.info("Password reset requested for %s", body.email)

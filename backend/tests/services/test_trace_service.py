@@ -7,9 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.models.email import EmailClassification, EmailStatus
 from tests.services.conftest import make_agent_log, make_email, make_tool_execution
-
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 
-class EmailClassification(str, enum.Enum):
+class EmailClassification(enum.StrEnum):
     """Possible email classifications."""
     INQUIRY = "inquiry"
     MEETING_REQUEST = "meeting_request"
@@ -23,7 +23,7 @@ class EmailClassification(str, enum.Enum):
     OTHER = "other"
 
 
-class EmailStatus(str, enum.Enum):
+class EmailStatus(enum.StrEnum):
     """Email processing status."""
     PENDING = "pending"
     PROCESSING = "processing"
@@ -71,7 +71,7 @@ class Email(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     draft_response: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
-    user: Mapped["User"] = relationship(back_populates="emails")  # noqa: F821
-    agent_logs: Mapped[list["AgentLog"]] = relationship(  # noqa: F821
+    user: Mapped[User] = relationship(back_populates="emails")  # noqa: F821
+    agent_logs: Mapped[list[AgentLog]] = relationship(  # noqa: F821
         back_populates="email", cascade="all, delete-orphan"
     )

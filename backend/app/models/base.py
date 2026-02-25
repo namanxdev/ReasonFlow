@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Self
 
-from sqlalchemy import DateTime, func, select
+from sqlalchemy import DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -44,24 +43,24 @@ class UUIDPrimaryKeyMixin:
 
 class SoftDeleteMixin:
     """Mixin that adds soft delete capability to models (DB-NEW-5 fix).
-    
+
     Instead of permanently deleting records, sets deleted_at timestamp.
     Query filters automatically exclude soft-deleted records.
-    
+
     Usage:
         class MyModel(Base, SoftDeleteMixin):
             __tablename__ = "my_table"
             ...
-        
+
         # Query only non-deleted (default)
         result = await db.execute(select(MyModel))
-        
+
         # Include deleted
         result = await db.execute(select(MyModel).execution_options(include_deleted=True))
-        
+
         # Soft delete
         await obj.soft_delete(db)
-        
+
         # Restore
         await obj.restore(db)
     """

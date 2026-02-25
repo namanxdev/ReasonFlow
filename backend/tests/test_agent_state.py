@@ -5,8 +5,6 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-import pytest
-
 from app.agent.state import AgentState
 
 

@@ -18,7 +18,7 @@ from app.api.middleware.request_id import RequestIdMiddleware
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.logging import setup_logging
-from app.core.task_tracker import TaskTracker, get_task_tracker
+from app.core.task_tracker import get_task_tracker
 from app.schemas.health import HealthResponse
 from app.services import health_service
 
@@ -67,11 +67,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler for startup/shutdown."""
     # Startup
     setup_logging()
-    
+
     # Initialize task tracker for graceful shutdown
     tracker = get_task_tracker()
     app.state.task_tracker = tracker
-    
+
     if settings.is_production:
         _validate_production_config()
 
@@ -121,7 +121,9 @@ def create_app() -> FastAPI:
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-        allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With", "X-CSRF-Token"],
+        allow_headers=[
+            "Content-Type", "Authorization", "Accept", "X-Requested-With", "X-CSRF-Token"
+        ],
         expose_headers=["X-Request-ID"],
     )
 

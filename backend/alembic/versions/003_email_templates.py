@@ -4,16 +4,17 @@ Revision ID: 003_email_templates
 Revises: 002_add_email_draft_fields
 Create Date: 2026-02-19
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
+
+import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSON, UUID
 
 from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID, JSON
 
 revision: str = "003_email_templates"
-down_revision: Union[str, None] = "002_user_preferences"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "002_user_preferences"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

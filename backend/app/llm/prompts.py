@@ -1,6 +1,8 @@
 """Prompt templates for Gemini LLM calls."""
 
-CLASSIFICATION_PROMPT = """You are an email classification assistant. Analyze the following email and classify its intent.
+CLASSIFICATION_PROMPT = """\
+You are an email classification assistant. \
+Analyze the following email and classify its intent.
 
 Email Subject: {subject}
 Email Body:
@@ -23,7 +25,9 @@ Respond in JSON format:
 }}
 """
 
-RESPONSE_GENERATION_PROMPT = """You are a professional email assistant. Generate a response to the following email.
+RESPONSE_GENERATION_PROMPT = """\
+You are a professional email assistant. \
+Generate a response to the following email.
 
 Original Email:
 Subject: {subject}
@@ -66,7 +70,9 @@ Extract and return in JSON format:
 }}
 """
 
-DECISION_PROMPT = """You are a tool selection agent. Based on the email classification and context, decide which tools to invoke.
+DECISION_PROMPT = """\
+You are a tool selection agent. Based on the email classification and context, \
+decide which tools to invoke.
 
 Email Classification: {classification}
 Email Subject: {subject}
