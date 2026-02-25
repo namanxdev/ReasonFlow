@@ -54,7 +54,7 @@ export default function InboxPage() {
 
   const queryClient = useQueryClient();
 
-  const { data, isLoading, isFetching } = useEmails(filters);
+  const { data, isLoading, isFetching, isPlaceholderData } = useEmails(filters);
   const { data: stats } = useEmailStats();
   const syncMutation = useSyncEmails();
   const classifyMutation = useClassifyEmails();
@@ -164,6 +164,7 @@ export default function InboxPage() {
 
   useEffect(() => {
     if (!data) return;
+    if (isPlaceholderData) return;
     if (data.total === 0) return;
 
     const maxPage = Math.ceil(data.total / data.per_page) || 1;
@@ -173,7 +174,7 @@ export default function InboxPage() {
         page: maxPage,
       }));
     }
-  }, [data, currentPage]);
+  }, [data, currentPage, isPlaceholderData]);
 
   // Use stats from dedicated endpoint (full dataset, not just current page)
   const pendingCount = stats?.pending ?? 0;
@@ -336,9 +337,9 @@ export default function InboxPage() {
           {/* Email List */}
           <StaggerItem>
             <SectionCard className="overflow-hidden relative">
-              {isFetching && (
-                <div className="absolute inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-10">
-                  <Loader2 className="size-8 animate-spin text-blue-500" />
+              {isPlaceholderData && isFetching && (
+                <div className="absolute top-0 left-0 right-0 h-1 z-10 overflow-hidden bg-blue-100">
+                  <div className="h-full w-1/3 bg-blue-500 animate-pulse rounded-r" />
                 </div>
               )}
               <EmailList
@@ -347,19 +348,20 @@ export default function InboxPage() {
                 selectedId={selectedEmailId}
                 onSelect={handleEmailSelect}
                 onSort={handleSort}
+                currentPage={currentPage}
               />
             </SectionCard>
           </StaggerItem>
 
-          {/* Pagination - always show when there's data */}
-          {data && data.total > 0 && (
-            <StaggerItem>
+          {/* Pagination - always in stagger sequence to avoid late-mount animation bug */}
+          <StaggerItem>
+            {(data || isPlaceholderData) && (data?.total ?? 0) > 0 ? (
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
-                totalItems={data.total}
+                totalItems={data?.total ?? 0}
                 pageSize={filters.page_size || 25}
-                isFetching={isFetching}
+                isFetching={isPlaceholderData && isFetching}
                 itemLabel="emails"
                 onPageChange={(page) =>
                   setFilters((prev) => ({ ...prev, page }))
@@ -368,8 +370,10 @@ export default function InboxPage() {
                   setFilters((prev) => ({ ...prev, page_size: size, page: 1 }))
                 }
               />
-            </StaggerItem>
-          )}
+            ) : (
+              <div className="h-10" />
+            )}
+          </StaggerItem>
         </StaggerContainer>
       </div>
 

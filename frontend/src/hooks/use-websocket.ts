@@ -39,12 +39,14 @@ export function useWebSocket({
     isConnecting: false,
     reconnectAttempts: 0,
   });
-  
+
   const ws = useRef<WebSocket | null>(null);
   const reconnectTimeout = useRef<NodeJS.Timeout | null>(null);
   const intentionalClose = useRef(false);
   const wasConnected = useRef(false);
-  
+  // Track reconnect attempts in a ref to avoid re-creating `connect` on each attempt
+  const reconnectAttemptsRef = useRef(0);
+
   // Get auth state from store
   const { accessToken, isAuthenticated } = useAuthStore();
 
@@ -97,6 +99,7 @@ export function useWebSocket({
           // only mark the connection as live once we receive it.
           if (data.type === "connected") {
             wasConnected.current = true;
+            reconnectAttemptsRef.current = 0;
             setState({
               isConnected: true,
               isConnecting: false,
@@ -114,13 +117,12 @@ export function useWebSocket({
       };
 
       ws.current.onclose = (event) => {
-        const wasClean = event.wasClean;
         setState(prev => ({
           ...prev,
           isConnected: false,
           isConnecting: false,
         }));
-        
+
         onDisconnect?.();
 
         // Don't reconnect if:
@@ -131,7 +133,7 @@ export function useWebSocket({
           return;
         }
 
-        const currentAttempt = state.reconnectAttempts;
+        const currentAttempt = reconnectAttemptsRef.current;
         if (maxReconnectAttempts > 0 && currentAttempt >= maxReconnectAttempts) {
           console.error(`WebSocket max reconnection attempts (${maxReconnectAttempts}) reached`);
           return;
@@ -146,16 +148,23 @@ export function useWebSocket({
         const jitter = delay * 0.2 * (Math.random() * 2 - 1);
         const finalDelay = Math.max(0, delay + jitter);
 
+        reconnectAttemptsRef.current = currentAttempt + 1;
         setState(prev => ({
           ...prev,
-          reconnectAttempts: prev.reconnectAttempts + 1,
+          reconnectAttempts: reconnectAttemptsRef.current,
         }));
 
         reconnectTimeout.current = setTimeout(connect, finalDelay);
       };
 
       ws.current.onerror = (error) => {
-        console.error("WebSocket error:", error);
+        const readyState = ws.current?.readyState;
+        const readyStateLabel =
+          readyState === WebSocket.CONNECTING ? "CONNECTING" :
+          readyState === WebSocket.OPEN ? "OPEN" :
+          readyState === WebSocket.CLOSING ? "CLOSING" :
+          readyState === WebSocket.CLOSED ? "CLOSED" : String(readyState);
+        console.error(`WebSocket error on ${url} (readyState: ${readyStateLabel})`);
         onError?.(error);
       };
     } catch (err) {
@@ -176,7 +185,6 @@ export function useWebSocket({
     onMessage,
     onDisconnect,
     onError,
-    state.reconnectAttempts,
     clearReconnectTimeout,
   ]);
 

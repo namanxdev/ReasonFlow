@@ -40,6 +40,9 @@ async def list_emails(
 
     if filters.status is not None:
         query = query.where(Email.status == filters.status)
+    else:
+        # By default, exclude rejected emails (e.g. auto-rejected spam)
+        query = query.where(Email.status != EmailStatus.REJECTED)
 
     if filters.classification is not None:
         query = query.where(Email.classification == filters.classification)
@@ -57,6 +60,8 @@ async def list_emails(
     count_query = select(func.count()).select_from(Email).where(Email.user_id == user_id)
     if filters.status is not None:
         count_query = count_query.where(Email.status == filters.status)
+    else:
+        count_query = count_query.where(Email.status != EmailStatus.REJECTED)
     if filters.classification is not None:
         count_query = count_query.where(Email.classification == filters.classification)
     if filters.search:
@@ -354,6 +359,11 @@ async def classify_unclassified_emails(db: AsyncSession, user_id: uuid.UUID) -> 
             except ValueError:
                 email.classification = EmailClassification.OTHER
             email.confidence = max(0.0, min(1.0, intent_result.confidence))
+
+            # Auto-reject spam emails so they don't clutter the inbox
+            if email.classification == EmailClassification.SPAM:
+                email.status = EmailStatus.REJECTED
+
             classified += 1
 
             # Publish event for classification

@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { EmailCard } from "./email-card";
 import type { Email } from "@/types";
 import { ArrowUpDown, Inbox, Mail } from "lucide-react";
@@ -12,6 +12,7 @@ interface EmailListProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onSort?: (field: string) => void;
+  currentPage?: number;
 }
 
 function SkeletonRow() {
@@ -57,6 +58,7 @@ export function EmailList({
   selectedId,
   onSelect,
   onSort,
+  currentPage,
 }: EmailListProps) {
   const reducedMotion = useReducedMotion();
 
@@ -135,34 +137,25 @@ export function EmailList({
       </div>
 
       {/* Email List */}
-      <motion.div
-        initial="hidden"
-        animate="visible"
-        variants={{
-          hidden: { opacity: 0 },
-          visible: {
-            opacity: 1,
-            transition: { staggerChildren: 0.02 },
-          },
-        }}
-        className="divide-y divide-slate-100"
-      >
-        {emails.map((email) => (
-          <motion.div
-            key={email.id}
-            variants={{
-              hidden: { opacity: 0, y: 10 },
-              visible: { opacity: 1, y: 0 },
-            }}
-          >
-            <EmailCard
-              email={email}
-              isSelected={selectedId === email.id}
-              onClick={() => onSelect(email.id)}
-            />
-          </motion.div>
-        ))}
-      </motion.div>
+      <div className="divide-y divide-slate-100">
+        <AnimatePresence mode="popLayout">
+          {emails.map((email, index) => (
+            <motion.div
+              key={email.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15, delay: index * 0.02 }}
+            >
+              <EmailCard
+                email={email}
+                isSelected={selectedId === email.id}
+                onClick={() => onSelect(email.id)}
+              />
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
