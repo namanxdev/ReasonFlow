@@ -2,7 +2,7 @@
 # Multi-stage build for optimized production image
 
 # Stage 1: Builder - Install build dependencies and compile Python packages
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 # Set environment variables for build
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -24,10 +24,10 @@ COPY pyproject.toml requirements.txt ./
 
 # Install Python dependencies to a user directory for easy copying
 RUN pip install --user --no-cache-dir -r requirements.txt && \
-    pip install --user --no-cache-dir -e .
+    pip install --user --no-cache-dir --no-deps .
 
 # Stage 2: Runtime - Minimal image with only runtime dependencies
-FROM python:3.11-slim as runtime
+FROM python:3.11-slim AS runtime
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
